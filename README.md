@@ -64,10 +64,46 @@ npm install
 npm run dev          # starts on http://localhost:3000
 ```
 
-### Database
+### Database (PostgreSQL via Docker)
+
+The database runs in Docker while the backend and frontend run directly on
+the host. Docker Compose reads optional overrides from a `.env` file in the
+repo root:
+
+```bash
+# .env (repo root) — optional, these are the defaults
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=get_it_done
+POSTGRES_PORT=5432
+```
+
+Start PostgreSQL and wait for it to become healthy:
 
 ```bash
 docker compose up -d postgres
+docker compose ps        # STATUS should show "healthy"
+```
+
+Then, from `backend/` (with `backend/.env` copied from `.env.example`):
+apply migrations and seed the database:
+
+```bash
+cd backend
+cp .env.example .env       # if not done already
+npm run prisma:migrate     # prisma migrate dev
+npm run db:seed            # prisma db seed
+```
+
+`backend/.env` must contain a `DATABASE_URL` whose user, password, port, and
+database name match the compose variables above.
+
+Useful commands:
+
+```bash
+docker compose logs -f postgres   # follow database logs
+docker compose down               # stop (data persists in the postgres-data volume)
+docker compose down -v            # stop and DELETE all database data
 ```
 
 ## Planned Architecture
