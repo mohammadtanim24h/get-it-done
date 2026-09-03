@@ -14,4 +14,5 @@ export const env = {
   port: parsePort(process.env.PORT, 4000),
   apiPrefix: process.env.API_PREFIX ?? '/api',
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+  databaseUrl: process.env.DATABASE_URL ?? '',
 } as const;

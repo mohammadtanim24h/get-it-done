@@ -1,0 +1,97 @@
+// Mini Kanban Board — PostgreSQL schema
+//
+// Position convention (columns and tasks):
+// - Integer positions are zero-based.
+// - Within a parent (board for columns, column for tasks) positions are
+//   contiguous: 0, 1, 2, ... with no gaps or duplicates.
+// - Uniqueness of (parentId, position) is enforced by the database.
+// - Future task-move endpoints will use PostgreSQL transactions with
+//   row locking (SELECT ... FOR UPDATE) to keep positions contiguous
+//   under concurrent moves. Move logic is intentionally NOT implemented
+//   in this phase.
+//
+// Cascading behavior:
+// - Deleting a user deletes the boards they own (ownership implies
+//   lifetime control) and their board memberships.
+// - Deleting a board deletes its memberships, columns, and tasks.
+// - Deleting a column deletes its tasks.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownedBoards Board[]       @relation("BoardOwner")
+  memberships BoardMember[]
+}
+
+model Board {
+  id        String   @id @default(cuid())
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner   User   @relation("BoardOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+
+  members BoardMember[]
+  columns Column[]
+
+  @@index([ownerId])
+}
+
+model BoardMember {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  boardId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  // A user can be a member of a board at most once.
+  @@unique([boardId, userId])
+  @@index([userId])
+}
+
+model Column {
+  id        String   @id @default(cuid())
+  title     String
+  position  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  boardId String
+
+  tasks Task[]
+
+  @@unique([boardId, position])
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  position    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  column   Column @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  columnId String
+
+  @@unique([columnId, position])
+}
