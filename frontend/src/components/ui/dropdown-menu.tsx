@@ -18,6 +18,7 @@ export interface DropdownMenuProps {
 export function DropdownMenu({ buttonLabel, items }: DropdownMenuProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -26,7 +27,10 @@ export function DropdownMenu({ buttonLabel, items }: DropdownMenuProps) {
       if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
     }
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') {
+        toggleRef.current?.focus();
+        setOpen(false);
+      }
     }
 
     document.addEventListener('mousedown', handlePointerDown);
@@ -43,6 +47,7 @@ export function DropdownMenu({ buttonLabel, items }: DropdownMenuProps) {
     <div ref={containerRef} className="relative">
       <button
         type="button"
+        ref={toggleRef}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={buttonLabel}
