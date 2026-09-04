@@ -3,7 +3,7 @@ import { ValidationError } from '../utils/appError';
 
 // Email normalization: trim + lowercase so "John@Example.COM " and
 // "john@example.com" are treated as the same account.
-const email = z
+export const email = z
   .string({ required_error: 'email is required' })
   .trim()
   .toLowerCase()
