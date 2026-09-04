@@ -462,3 +462,134 @@ describe('PATCH /api/tasks/:taskId/move — cross column', () => {
     });
   });
 });
+
+describe('PATCH /api/tasks/:taskId/move — validation and authorization', () => {
+  it('returns 404 for a non-existent task', async () => {
+    addBoard('board-1', 'Project', OWNER.id);
+    addColumn('board-1', 'col-todo', 'Todo', 0);
+
+    const res = await moveTaskRequest('nope', OWNER, { targetColumnId: 'col-todo', targetPosition: 0 });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('NOT_FOUND');
+  });
+
+  it('returns 404 for a non-existent target column', async () => {
+    setupBoard();
+
+    const res = await moveTaskRequest('task-a', OWNER, { targetColumnId: 'nope', targetPosition: 0 });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('NOT_FOUND');
+    expect(todoOrder()).toEqual(['task-a', 'task-b', 'task-c', 'task-d']);
+  });
+
+  it('returns 404 (not 403) when the target column belongs to another board', async () => {
+    setupBoard();
+    addBoard('board-2', 'Foreign', OUTSIDER.id);
+    addColumn('board-2', 'col-foreign', 'Foreign column', 0);
+
+    const res = await moveTaskRequest('task-a', OWNER, { targetColumnId: 'col-foreign', targetPosition: 0 });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('NOT_FOUND');
+    expect(db.tasks.find((t) => t.id === 'task-a')!).toMatchObject({ columnId: 'col-todo', position: 0 });
+  });
+
+  it('blocks a user without access to the board (403, no mutation)', async () => {
+    setupBoard();
+
+    const res = await moveTaskRequest('task-a', OUTSIDER, { targetColumnId: 'col-doing', targetPosition: 0 });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
+    expect(mockedQueryRaw).not.toHaveBeenCalled();
+    expect(mockedTaskUpdate).not.toHaveBeenCalled();
+    expectAllColumnsContiguous();
+  });
+
+  it('lets a board member move tasks', async () => {
+    setupBoard();
+    addMember('board-1', MEMBER.id);
+
+    const res = await moveTaskRequest('task-a', MEMBER, { targetColumnId: 'col-doing', targetPosition: 0 });
+
+    expect(res.status).toBe(200);
+    expectAllColumnsContiguous();
+  });
+
+  it('returns 401 when not authenticated', async () => {
+    setupBoard();
+
+    const res = await request(createApp())
+      .patch('/api/tasks/task-a/move')
+      .send({ targetColumnId: 'col-doing', targetPosition: 0 });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a negative targetPosition (400)', async () => {
+    setupBoard();
+
+    const res = await moveTaskRequest('task-a', OWNER, { targetColumnId: 'col-todo', targetPosition: -1 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejects a non-integer targetPosition (400)', async () => {
+    setupBoard();
+
+    const res = await moveTaskRequest('task-a', OWNER, { targetColumnId: 'col-todo', targetPosition: 1.5 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejects a non-number targetPosition (400)', async () => {
+    setupBoard();
+
+    const res = await moveTaskRequest('task-a', OWNER, { targetColumnId: 'col-todo', targetPosition: '2' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejects a missing targetColumnId (400)', async () => {
+    setupBoard();
+
+    const res = await moveTaskRequest('task-a', OWNER, { targetPosition: 0 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejects an empty body (400)', async () => {
+    setupBoard();
+
+    const res = await moveTaskRequest('task-a', OWNER, {});
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejects a same-column move beyond the last index (documented: reject, not clamp)', async () => {
+    setupBoard();
+
+    const res = await moveTaskRequest('task-a', OWNER, { targetColumnId: 'col-todo', targetPosition: 4 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(todoOrder()).toEqual(['task-a', 'task-b', 'task-c', 'task-d']);
+  });
+
+  it('rejects a cross-column move beyond the destination count (documented: reject, not clamp)', async () => {
+    setupBoard();
+
+    const res = await moveTaskRequest('task-a', OWNER, { targetColumnId: 'col-doing', targetPosition: 3 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expectAllColumnsContiguous();
+  });
+});
