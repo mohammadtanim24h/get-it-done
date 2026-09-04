@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MembersPanel } from '@/components/boards/members-panel';
 import { RenameBoardDialog } from '@/components/boards/rename-board-dialog';
 import { ShareBoardDialog } from '@/components/boards/share-board-dialog';
@@ -22,6 +22,12 @@ export default function BoardDetailPage() {
   // The hook owns board state; renames are applied locally on top so the
   // header updates without a refetch.
   const [renamed, setRenamed] = useState<{ title: string; updatedAt: string } | null>(null);
+
+  // The App Router reuses this component across board ids without remounting,
+  // so a rename override from one board must not leak into another.
+  useEffect(() => {
+    setRenamed(null);
+  }, [params.boardId]);
 
   const isOwner = board !== null && board.role === 'owner';
   const title = renamed?.title ?? board?.title ?? '';
