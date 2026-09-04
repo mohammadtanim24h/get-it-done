@@ -515,6 +515,8 @@ describe('PATCH /api/tasks/:taskId/move — validation and authorization', () =>
     const res = await moveTaskRequest('task-a', MEMBER, { targetColumnId: 'col-doing', targetPosition: 0 });
 
     expect(res.status).toBe(200);
+    expect(columnTasks('col-doing').map((t) => t.id)).toEqual(['task-a', 'task-x', 'task-y']);
+    expect(todoOrder()).toEqual(['task-b', 'task-c', 'task-d']);
     expectAllColumnsContiguous();
   });
 
@@ -591,6 +593,8 @@ describe('PATCH /api/tasks/:taskId/move — validation and authorization', () =>
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
     expectAllColumnsContiguous();
+    expect(todoOrder()).toEqual(['task-a', 'task-b', 'task-c', 'task-d']);
+    expect(columnTasks('col-doing').map((t) => t.id)).toEqual(['task-x', 'task-y']);
   });
 });
 
