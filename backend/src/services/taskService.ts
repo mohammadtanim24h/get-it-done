@@ -17,7 +17,7 @@ import type { CreateTaskInput, UpdateTaskInput } from '../validators/taskValidat
  * Load a task and verify its column belongs to the given board. 404 for a
  * missing task OR one whose parent column lives on another board.
  */
-async function getTaskForBoard(db: Prisma.TransactionClient, boardId: string, taskId: string) {
+export async function getTaskForBoard(db: Prisma.TransactionClient, boardId: string, taskId: string) {
   const task = await db.task.findUnique({
     where: { id: taskId },
     include: { column: { select: { boardId: true } } },
