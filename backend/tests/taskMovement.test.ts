@@ -661,4 +661,57 @@ describe('PATCH /api/tasks/:taskId/move — invariants, atomicity, locking', () 
     expect(lastWrite.data.position).toBe(0);
     expectAllColumnsContiguous();
   });
+
+  it('retries with fresh state when a concurrent move relocates the task before the lock', async () => {
+    setupBoard();
+    // Simulate a competing transaction moving task-a to col-doing after
+    // our first read of it but before our post-lock read.
+    const staleTask = db.tasks.find((t) => t.id === 'task-a')!;
+    const staleRead = { ...staleTask, column: { boardId: 'board-1' } };
+    mockedTaskFindUnique.mockImplementationOnce(async () => ({
+      ...staleRead,
+      createdAt: new Date('2026-03-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-03-01T00:00:00.000Z'),
+    }));
+    mockedTaskFindMany.mockImplementationOnce(async () =>
+      ['task-b', 'task-c', 'task-d'].map((id) => db.tasks.find((t) => t.id === id)!),
+    );
+    // "Concurrent" state: task-a actually lives in col-doing at position 0 now.
+    const taskA = db.tasks.find((t) => t.id === 'task-a')!;
+    taskA.columnId = 'col-doing';
+    taskA.position = 0;
+    // The competing move renumbered both columns to stay contiguous:
+    // col-doing x->1, y->2; col-todo b->0, c->1, d->2.
+    db.tasks.find((t) => t.id === 'task-x')!.position = 1;
+    db.tasks.find((t) => t.id === 'task-y')!.position = 2;
+    db.tasks.find((t) => t.id === 'task-b')!.position = 0;
+    db.tasks.find((t) => t.id === 'task-c')!.position = 1;
+    db.tasks.find((t) => t.id === 'task-d')!.position = 2;
+
+    // Move task-a (really in col-doing) to position 2 there.
+    const res = await moveTaskRequest('task-a', OWNER, { targetColumnId: 'col-doing', targetPosition: 2 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.task).toMatchObject({ id: 'task-a', position: 2, columnId: 'col-doing' });
+    expect(columnTasks('col-doing').map((t) => t.id)).toEqual(['task-x', 'task-y', 'task-a']);
+    expectAllColumnsContiguous();
+  });
+
+  it('returns 409 when the task keeps relocating across retries', async () => {
+    setupBoard();
+    const staleTask = db.tasks.find((t) => t.id === 'task-a')!;
+    mockedTaskFindUnique.mockImplementation(async () => ({
+      ...staleTask,
+      column: { boardId: 'board-1' },
+      createdAt: new Date('2026-03-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-03-01T00:00:00.000Z'),
+    }));
+    mockedTaskFindMany.mockImplementation(async () => db.tasks.filter((t) => t.id !== 'task-a'));
+
+    const res = await moveTaskRequest('task-a', OWNER, { targetColumnId: 'col-doing', targetPosition: 0 });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('CONFLICT');
+    expect(mockedTaskUpdate).not.toHaveBeenCalled();
+  });
 });
