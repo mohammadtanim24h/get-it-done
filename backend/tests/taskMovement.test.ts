@@ -593,3 +593,68 @@ describe('PATCH /api/tasks/:taskId/move — validation and authorization', () =>
     expectAllColumnsContiguous();
   });
 });
+
+describe('PATCH /api/tasks/:taskId/move — invariants, atomicity, locking', () => {
+  it('keeps positions contiguous through repeated movements', async () => {
+    setupBoard();
+
+    const moves: Array<[string, string, number]> = [
+      ['task-a', 'col-doing', 0],
+      ['task-d', 'col-doing', 2],
+      ['task-c', 'col-todo', 0],
+      ['task-x', 'col-todo', 2],
+      ['task-b', 'col-doing', 3],
+      ['task-y', 'col-todo', 0],
+      ['task-a', 'col-todo', 3],
+      ['task-x', 'col-doing', 1],
+    ];
+
+    for (const [taskId, columnId, position] of moves) {
+      const res = await moveTaskRequest(taskId, OWNER, { targetColumnId: columnId, targetPosition: position });
+      expect(res.status).toBe(200);
+      // Business invariant after EVERY operation: every column holds
+      // exactly the position sequence [0, 1, ..., n-1].
+      expectAllColumnsContiguous();
+    }
+
+    expect(db.tasks).toHaveLength(6);
+  });
+
+  it('runs the whole move inside a single transaction', async () => {
+    setupBoard();
+
+    await moveTaskRequest('task-a', OWNER, { targetColumnId: 'col-doing', targetPosition: 0 });
+
+    expect(mockedTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('locks the affected column rows FOR UPDATE before reordering', async () => {
+    setupBoard();
+
+    await moveTaskRequest('task-a', OWNER, { targetColumnId: 'col-doing', targetPosition: 0 });
+
+    expect(mockedQueryRaw).toHaveBeenCalledTimes(1);
+    // Tagged-template call: first argument is the SQL string chunks.
+    const sql = (mockedQueryRaw.mock.calls[0]![0] as readonly string[]).join('§');
+    expect(sql).toContain('FOR UPDATE');
+    expect(sql).toContain('"Column"');
+  });
+
+  it('never writes the moved task to a position another task holds (parking sentinel shifts first)', async () => {
+    setupBoard();
+
+    await moveTaskRequest('task-a', OWNER, { targetColumnId: 'col-doing', targetPosition: 0 });
+
+    // The first write for the moved task must move it off the grid (to
+    // the -1 parking position) before siblings shift; final write lands
+    // it on its real position.
+    const movedWrites = mockedTaskUpdate.mock.calls.filter(
+      (call) => (call[0] as { where: { id: string } }).where.id === 'task-a',
+    );
+    expect(movedWrites.length).toBeGreaterThanOrEqual(2);
+    expect((movedWrites[0]![0] as { data: { position?: number } }).data.position).toBe(-1);
+    const lastWrite = movedWrites[movedWrites.length - 1]![0] as { data: { position?: number } };
+    expect(lastWrite.data.position).toBe(0);
+    expectAllColumnsContiguous();
+  });
+});
