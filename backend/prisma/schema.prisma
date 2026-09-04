@@ -5,10 +5,10 @@
 // - Within a parent (board for columns, column for tasks) positions are
 //   contiguous: 0, 1, 2, ... with no gaps or duplicates.
 // - Uniqueness of (parentId, position) is enforced by the database.
-// - Future task-move endpoints will use PostgreSQL transactions with
-//   row locking (SELECT ... FOR UPDATE) to keep positions contiguous
-//   under concurrent moves. Move logic is intentionally NOT implemented
-//   in this phase.
+// - Task moves (taskMovementService) run in a PostgreSQL transaction
+//   with row-level locking (SELECT ... FOR UPDATE on the affected
+//   Column rows, acquired in sorted-id order) to keep positions
+//   contiguous under concurrent moves.
 //
 // Cascading behavior:
 // - Deleting a user deletes the boards they own (ownership implies
