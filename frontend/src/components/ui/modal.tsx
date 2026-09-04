@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
 export interface ModalProps {
@@ -19,6 +19,7 @@ const FOCUSABLE =
  * initial focus (falls back to the first focusable element).
  */
 export function Modal({ open, title, onClose, children }: ModalProps) {
+  const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   // Keep the latest onClose for listeners without re-running the effect on
   // every render (callers usually pass an inline arrow function).
@@ -81,11 +82,11 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby={titleId}
         className="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
       >
         <div className="mb-4 flex items-start justify-between gap-4">
-          <h2 id="modal-title" className="text-lg font-semibold text-slate-900">
+          <h2 id={titleId} className="text-lg font-semibold text-slate-900">
             {title}
           </h2>
           <button
