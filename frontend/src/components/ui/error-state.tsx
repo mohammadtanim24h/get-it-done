@@ -2,7 +2,7 @@ import { Button } from './button';
 
 export interface ErrorStateProps {
   title?: string;
-  message?: string;
+  message?: string | null;
   onRetry?: () => void;
 }
 
