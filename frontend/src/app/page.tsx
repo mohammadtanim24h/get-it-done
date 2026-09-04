@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { buttonClasses } from '@/components/button';
-import { LoadingState } from '@/components/loading-state';
+import { buttonClasses } from '@/components/ui/button';
+import { LoadingState } from '@/components/ui/loading-state';
 import { useAuth } from '@/hooks/use-auth';
 
 export default function HomePage() {

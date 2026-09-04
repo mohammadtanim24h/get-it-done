@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
-import { Button, buttonClasses } from '@/components/button';
+import { Button, buttonClasses } from '@/components/ui/button';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();

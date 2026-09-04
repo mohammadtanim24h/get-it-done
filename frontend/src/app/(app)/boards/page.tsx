@@ -1,4 +1,4 @@
-import { EmptyState } from '@/components/empty-state';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default function BoardsPage() {
   return (

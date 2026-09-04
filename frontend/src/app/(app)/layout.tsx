@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/app-shell';
-import { LoadingState } from '@/components/loading-state';
+import { LoadingState } from '@/components/ui/loading-state';
 import { useAuth } from '@/hooks/use-auth';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

@@ -9,7 +9,7 @@ import {
   FieldError,
   FormError,
 } from '@/components/auth/auth-form';
-import { Button } from '@/components/button';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { ApiClientError } from '@/services/api-client';
 import { validateRegisterForm } from '@/lib/validation';
