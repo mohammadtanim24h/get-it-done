@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 vi.mock('../src/lib/prisma', () => ({
   prisma: {
     $transaction: vi.fn(),
+    $queryRaw: vi.fn(),
     $disconnect: vi.fn(),
     user: {
       findUnique: vi.fn(),
@@ -52,6 +53,7 @@ const mockedTaskUpdateMany = vi.mocked(prisma.task.updateMany);
 const mockedTaskDelete = vi.mocked(prisma.task.delete);
 const mockedTaskCount = vi.mocked(prisma.task.count);
 const mockedTransaction = vi.mocked(prisma.$transaction);
+const mockedQueryRaw = vi.mocked(prisma.$queryRaw);
 
 const TEST_JWT_SECRET = env.jwtSecret;
 const COOKIE_NAME = env.jwtCookieName;
@@ -146,6 +148,10 @@ beforeEach(() => {
   mockedTaskDelete.mockReset();
   mockedTaskCount.mockReset();
   mockedTransaction.mockReset();
+  mockedQueryRaw.mockReset();
+
+  // Row locks (FOR UPDATE) always succeed against the in-memory DB.
+  mockedQueryRaw.mockResolvedValue([]);
 
   // $transaction runs the callback against the same in-memory mock so the
   // interactive-transaction code path behaves like the real client.
@@ -308,6 +314,30 @@ describe('POST /api/columns/:columnId/tasks', () => {
     expect(res.body.data.task.position).toBe(1);
     expect(mockedTaskCreate.mock.calls[0]![0].data).toMatchObject({ position: 1 });
     expect(mockedTaskCreate.mock.calls[0]![0].data).not.toHaveProperty('position', 99);
+  });
+
+  it('locks the column row FOR UPDATE before counting, inside the transaction', async () => {
+    addBoard('board-1', 'Project', OWNER.id);
+    addColumn('board-1', 'col-1', 'Todo', 0);
+
+    const res = await request(createApp())
+      .post('/api/columns/col-1/tasks')
+      .set('Cookie', authCookie(OWNER))
+      .send({ title: 'Racing task' });
+
+    expect(res.status).toBe(201);
+    expect(mockedTransaction).toHaveBeenCalledTimes(1);
+    // Concurrent appends (and moves that renumber the column) serialize on
+    // the same FOR UPDATE column lock taskMovementService takes; without it
+    // two racing creates both compute the same append position and one
+    // fails on the (columnId, position) unique constraint.
+    expect(mockedQueryRaw).toHaveBeenCalledTimes(1);
+    const sql = (mockedQueryRaw.mock.calls[0]![0] as readonly string[]).join('§');
+    expect(sql).toContain('FOR UPDATE');
+    expect(sql).toContain('"Column"');
+    expect(mockedQueryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      mockedTaskCount.mock.invocationCallOrder[0]!,
+    );
   });
 
   it('lets a board member create tasks', async () => {

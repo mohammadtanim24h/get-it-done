@@ -34,6 +34,12 @@ async function getColumnForBoard(db: Prisma.TransactionClient, boardId: string, 
 /** Append a column to the end of the board. Position is server-assigned. */
 export async function createColumn(boardId: string, input: CreateColumnInput): Promise<ColumnDto> {
   return prisma.$transaction(async (tx) => {
+    // Lock the board row so the count-then-create below serializes against
+    // concurrent column appends to this board. Without the lock, two racing
+    // creates could compute the same append position and one request would
+    // fail on the (boardId, position) unique constraint instead of
+    // appending at n+1.
+    await tx.$queryRaw`SELECT id FROM "Board" WHERE id = ${boardId} FOR UPDATE`;
     // count == next position because positions are kept contiguous (0..n-1).
     const position = await tx.column.count({ where: { boardId } });
     return tx.column.create({

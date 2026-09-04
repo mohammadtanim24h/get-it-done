@@ -53,7 +53,7 @@ returns `403` — existence is never leaked across boards.
 
 | Method | Path                                  | Access | Description |
 |--------|---------------------------------------|--------|-------------|
-| POST   | `/columns/:columnId/tasks`            | member | Append task. Body: `{ title, description? }` — position is server-assigned |
+| POST   | `/columns/:columnId/tasks`            | member | Append task. Body: `{ title, description? }` — position is server-assigned; appends serialize on a row lock so concurrent creates never collide on `(columnId, position)` |
 | GET    | `/columns/:columnId/tasks`            | member | Tasks ordered by `position` |
 | GET    | `/tasks/:taskId`                      | member | Fetch one task |
 | PATCH  | `/tasks/:taskId`                      | member | Edit. Body: `{ title?, description? }` — cannot change position/column here |

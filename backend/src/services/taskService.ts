@@ -31,6 +31,13 @@ export async function getTaskForBoard(db: Prisma.TransactionClient, boardId: str
 /** Append a task to the end of a column. Position is server-assigned. */
 export async function createTask(columnId: string, input: CreateTaskInput): Promise<TaskDto> {
   return prisma.$transaction(async (tx) => {
+    // Lock the parent column row (the same lock class taskMovementService
+    // takes) so the count-then-create below serializes against concurrent
+    // appends to this column and against moves that renumber it. Without
+    // the lock, two racing creates could compute the same append position
+    // and one request would fail on the (columnId, position) unique
+    // constraint instead of appending at n+1.
+    await tx.$queryRaw`SELECT id FROM "Column" WHERE id = ${columnId} FOR UPDATE`;
     // count == next position because positions are kept contiguous (0..n-1).
     const position = await tx.task.count({ where: { columnId } });
     return tx.task.create({

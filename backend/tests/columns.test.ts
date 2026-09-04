@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 vi.mock('../src/lib/prisma', () => ({
   prisma: {
     $transaction: vi.fn(),
+    $queryRaw: vi.fn(),
     $disconnect: vi.fn(),
     user: {
       findUnique: vi.fn(),
@@ -51,6 +52,7 @@ const mockedColumnUpdateMany = vi.mocked(prisma.column.updateMany);
 const mockedColumnDelete = vi.mocked(prisma.column.delete);
 const mockedColumnCount = vi.mocked(prisma.column.count);
 const mockedTransaction = vi.mocked(prisma.$transaction);
+const mockedQueryRaw = vi.mocked(prisma.$queryRaw);
 
 const TEST_JWT_SECRET = env.jwtSecret;
 const COOKIE_NAME = env.jwtCookieName;
@@ -144,6 +146,10 @@ beforeEach(() => {
   mockedColumnDelete.mockReset();
   mockedColumnCount.mockReset();
   mockedTransaction.mockReset();
+  mockedQueryRaw.mockReset();
+
+  // Row locks (FOR UPDATE) always succeed against the in-memory DB.
+  mockedQueryRaw.mockResolvedValue([]);
 
   // $transaction runs the callback against the same in-memory mock so the
   // interactive-transaction code path behaves like the real client.
@@ -263,12 +269,22 @@ describe('POST /api/boards/:boardId/columns', () => {
     expect(res.body.data.column).toMatchObject({ title: 'Done', position: 2, boardId: 'board-1' });
   });
 
-  it('runs creation in a transaction (count + create are atomic)', async () => {
+  it('runs creation in a transaction and locks the board row before counting', async () => {
     addBoard('board-1', 'Project', OWNER.id);
 
     await request(createApp()).post('/api/boards/board-1/columns').set('Cookie', authCookie(OWNER)).send({ title: 'Todo' });
 
     expect(mockedTransaction).toHaveBeenCalledTimes(1);
+    // The board row is locked FOR UPDATE inside the transaction, BEFORE the
+    // count, so concurrent appends serialize instead of racing to the same
+    // position (unique constraint on (boardId, position)).
+    expect(mockedQueryRaw).toHaveBeenCalledTimes(1);
+    const sql = (mockedQueryRaw.mock.calls[0]![0] as readonly string[]).join('§');
+    expect(sql).toContain('FOR UPDATE');
+    expect(sql).toContain('"Board"');
+    expect(mockedQueryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      mockedColumnCount.mock.invocationCallOrder[0]!,
+    );
   });
 
   it('lets a board member create columns', async () => {
