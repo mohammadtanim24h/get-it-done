@@ -365,4 +365,24 @@ describe('PATCH /api/tasks/:taskId/move — same column', () => {
     // Same-column move: source and destination are the same column.
     expect(res.body.data.destinationColumn).toEqual(res.body.data.sourceColumn);
   });
+
+  it('shifts sibling rows in collision-free order (descending when incrementing)', async () => {
+    setupBoard();
+
+    // Move task-d (pos 3) to position 0: siblings a,b,c (positions 0-2)
+    // must be incremented in DESCENDING position order (c, b, a) so no
+    // single-row update ever lands on a position another row still holds.
+    await moveTaskRequest('task-d', OWNER, { targetColumnId: 'col-todo', targetPosition: 0 });
+
+    const siblingWrites = mockedTaskUpdate.mock.calls
+      .map((call) => call[0] as { where: { id: string }; data: { position?: number } })
+      .filter((call) => ['task-a', 'task-b', 'task-c'].includes(call.where.id))
+      .map((call) => ({ id: call.where.id, to: call.data.position }));
+    expect(siblingWrites).toEqual([
+      { id: 'task-c', to: 3 },
+      { id: 'task-b', to: 2 },
+      { id: 'task-a', to: 1 },
+    ]);
+    expectAllColumnsContiguous();
+  });
 });

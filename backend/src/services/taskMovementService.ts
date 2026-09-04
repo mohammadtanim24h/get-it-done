@@ -19,8 +19,11 @@ import type { MoveTaskInput } from '../validators/taskValidators';
  * 3. Read authoritative task positions AFTER the lock is held.
  * 4. Park the moved task at PARKING_POSITION (-1) — impossible for real
  *    data (positions are >= 0) and impossible to collide with (both
- *    column rows are locked) — then shift sibling rows with bulk
- *    updates and finally write the task's real position. Every
+ *    column rows are locked) — then shift sibling rows with ordered
+ *    single-row updates (descending original position when incrementing,
+ *    ascending when decrementing, because bulk updates cannot guarantee
+ *    constraint-safe visitation order on PostgreSQL) and finally write
+ *    the task's real position. Every
  *    intermediate state satisfies the (columnId, position) unique
  *    constraint, so no deferrable constraints are needed.
  *
@@ -55,6 +58,27 @@ export interface MoveTaskResult {
 async function lockColumns(db: Prisma.TransactionClient, columnIds: string[]): Promise<void> {
   const ids = [...new Set(columnIds)].sort();
   await db.$queryRaw`SELECT id FROM "Column" WHERE id IN (${Prisma.join(ids)}) ORDER BY id FOR UPDATE`;
+}
+
+/**
+ * Shift affected sibling tasks by exactly one position each, ONE ROW AT A
+ * TIME, in a deterministic collision-free order: descending original
+ * position when incrementing, ascending when decrementing. A bulk
+ * updateMany cannot guarantee row visitation order on PostgreSQL, and an
+ * incrementing bulk UPDATE can transiently collide with a not-yet-moved
+ * row under the (columnId, position) unique constraint.
+ */
+async function shiftTasks(
+  tx: Prisma.TransactionClient,
+  tasks: { id: string; position: number }[],
+  delta: 1 | -1,
+): Promise<void> {
+  const ordered = [...tasks].sort((a, b) =>
+    delta === 1 ? b.position - a.position : a.position - b.position,
+  );
+  for (const task of ordered) {
+    await tx.task.update({ where: { id: task.id }, data: { position: task.position + delta } });
+  }
 }
 
 const orderDto = (columnId: string, tasks: { id: string; position: number }[]): ColumnOrderDto => ({
@@ -99,16 +123,18 @@ export async function moveTask(boardId: string, taskId: string, input: MoveTaskI
         await tx.task.update({ where: { id: taskId }, data: { position: PARKING_POSITION } });
         if (from < to) {
           // Close the gap left by the task, open one at the target.
-          await tx.task.updateMany({
-            where: { columnId: sourceColumnId, position: { gt: from, lte: to } },
-            data: { position: { decrement: 1 } },
-          });
+          await shiftTasks(
+            tx,
+            sourceTasks.filter((t) => t.position > from && t.position <= to),
+            -1,
+          );
         } else {
           // Open a slot at the target, absorb the task's old slot.
-          await tx.task.updateMany({
-            where: { columnId: sourceColumnId, position: { gte: to, lt: from } },
-            data: { position: { increment: 1 } },
-          });
+          await shiftTasks(
+            tx,
+            sourceTasks.filter((t) => t.position >= to && t.position < from),
+            1,
+          );
         }
         await tx.task.update({ where: { id: taskId }, data: { position: to } });
       }
@@ -129,15 +155,17 @@ export async function moveTask(boardId: string, taskId: string, input: MoveTaskI
         data: { columnId: input.targetColumnId, position: PARKING_POSITION },
       });
       // Compact the source column.
-      await tx.task.updateMany({
-        where: { columnId: sourceColumnId, position: { gt: from } },
-        data: { position: { decrement: 1 } },
-      });
+      await shiftTasks(
+        tx,
+        sourceTasks.filter((t) => t.position > from),
+        -1,
+      );
       // Open a slot at the target position.
-      await tx.task.updateMany({
-        where: { columnId: input.targetColumnId, position: { gte: input.targetPosition } },
-        data: { position: { increment: 1 } },
-      });
+      await shiftTasks(
+        tx,
+        destinationTasks.filter((t) => t.position >= input.targetPosition),
+        1,
+      );
       await tx.task.update({ where: { id: taskId }, data: { position: input.targetPosition } });
     }
 
