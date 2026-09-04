@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { createTask, listTasks, getTask, updateTask, deleteTask } from '../services/taskService';
-import { createTaskSchema, updateTaskSchema } from '../validators/taskValidators';
+import { moveTask } from '../services/taskMovementService';
+import { createTaskSchema, updateTaskSchema, moveTaskSchema } from '../validators/taskValidators';
 import { parseOrThrow } from '../validators/authValidators';
 
 // HTTP concerns only. Authorization was resolved by authorizeColumn /
@@ -49,6 +50,17 @@ export async function remove(req: Request, res: Response, next: NextFunction): P
   try {
     await deleteTask(req.boardAccess!.boardId, req.params.taskId!);
     res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** Move a task within/between columns; ordering is recalculated server-side. */
+export async function move(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const input = parseOrThrow(moveTaskSchema, req.body);
+    const result = await moveTask(req.boardAccess!.boardId, req.params.taskId!, input);
+    res.status(200).json({ data: result });
   } catch (error) {
     next(error);
   }
