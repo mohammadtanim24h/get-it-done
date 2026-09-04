@@ -8,6 +8,7 @@ export type ErrorCode =
   | 'PAYLOAD_TOO_LARGE'
   | 'VALIDATION_ERROR'
   | 'UNAUTHORIZED'
+  | 'FORBIDDEN'
   | 'CONFLICT'
   | 'NOT_FOUND'
   | 'SERVICE_UNAVAILABLE';

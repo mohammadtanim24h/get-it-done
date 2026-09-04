@@ -44,6 +44,13 @@ export class UnauthorizedError extends AppError {
   }
 }
 
+export class ForbiddenError extends AppError {
+  constructor(message = 'You do not have permission to access this board', details?: unknown) {
+    super(403, 'FORBIDDEN', message, details);
+    this.name = 'ForbiddenError';
+  }
+}
+
 export class ConflictError extends AppError {
   constructor(message = 'Resource already exists', details?: unknown) {
     super(409, 'CONFLICT', message, details);
