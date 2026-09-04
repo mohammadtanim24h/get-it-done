@@ -36,3 +36,5 @@ docs/superpowers/
 
 # Prisma generated client (regenerated via prisma generate)
 backend/src/generated/
+
+.playwright-mcp
