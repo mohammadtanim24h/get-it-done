@@ -50,17 +50,30 @@ export async function getBoard(boardId: string, userId: string): Promise<BoardDe
   const board = await prisma.board.findUnique({
     where: { id: boardId },
     include: {
+      owner: { select: { id: true, name: true, email: true } },
       members: { include: { user: { select: { id: true, name: true, email: true } } } },
     },
   });
   if (!board) throw new NotFoundError('Board not found');
 
-  const members: BoardMemberDto[] = board.members.map((member) => ({
-    userId: member.user.id,
-    name: member.user.name,
-    email: member.user.email,
-    addedAt: member.createdAt,
-  }));
+  // The owner has no membership row (access comes from ownership), but the
+  // members list is the board's roster — include the owner as its first entry
+  // so every reader can see who owns the board. Removal of that entry stays
+  // blocked by removeBoardMember's owner guard.
+  const members: BoardMemberDto[] = [
+    {
+      userId: board.owner.id,
+      name: board.owner.name,
+      email: board.owner.email,
+      addedAt: board.createdAt,
+    },
+    ...board.members.map((member) => ({
+      userId: member.user.id,
+      name: member.user.name,
+      email: member.user.email,
+      addedAt: member.createdAt,
+    })),
+  ];
 
   return { ...toSummary(board, userId), members };
 }

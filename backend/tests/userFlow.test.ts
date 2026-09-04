@@ -227,10 +227,11 @@ beforeEach(() => {
           members: db.members.filter((m) => m.boardId === board.id && m.userId === userId),
         };
       }
-      // Board detail shape (include members with their user).
+      // Board detail shape (include owner and members with their user).
       if (args.include?.members) {
         return {
           ...board,
+          owner: db.users.find((u) => u.id === board.ownerId) ?? null,
           members: db.members
             .filter((m) => m.boardId === board.id)
             .map((m) => ({ ...m, user: db.users.find((u) => u.id === m.userId) ?? null })),

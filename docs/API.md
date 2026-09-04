@@ -28,7 +28,7 @@ Deletes return `204` with no body.
 |--------|----------------------------------------|-----------|-------------|
 | POST   | `/boards`                              | auth      | Create a board (caller becomes owner). Body: `{ title }` |
 | GET    | `/boards`                              | auth      | Boards the user owns or is a member of, with `role` |
-| GET    | `/boards/:boardId`                     | read      | Board detail incl. members |
+| GET    | `/boards/:boardId`                     | read      | Board detail incl. members (owner listed first; owner has no removable membership row) |
 | PATCH  | `/boards/:boardId`                     | owner     | Rename. Body: `{ title }` |
 | DELETE | `/boards/:boardId`                     | owner     | Delete board (cascades members/columns/tasks) |
 | POST   | `/boards/:boardId/members`             | owner     | Share board. Body: `{ email }` (must be a registered user) |

@@ -195,10 +195,11 @@ beforeEach(() => {
         };
       }
 
-      // Detail query shape (include members with their user).
+      // Detail query shape (include owner and members with their user).
       if (args.include?.members) {
         return {
           ...board,
+          owner: db.users.find((u) => u.id === board.ownerId) ?? null,
           members: db.members
             .filter((m) => m.boardId === board.id)
             .map((m) => ({
@@ -330,6 +331,8 @@ describe('GET /api/boards/:boardId', () => {
       role: 'owner',
     });
     expect(res.body.data.board.members).toEqual([
+      // The owner is listed first, synthesized from the board's owner relation.
+      { userId: OWNER.id, name: OWNER.name, email: OWNER.email, addedAt: '2026-02-01T00:00:00.000Z' },
       { userId: MEMBER.id, name: MEMBER.name, email: MEMBER.email, addedAt: '2026-02-02T00:00:00.000Z' },
     ]);
   });
