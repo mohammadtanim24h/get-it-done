@@ -386,3 +386,79 @@ describe('PATCH /api/tasks/:taskId/move — same column', () => {
     expectAllColumnsContiguous();
   });
 });
+
+describe('PATCH /api/tasks/:taskId/move — cross column', () => {
+  const doingOrder = () => columnTasks('col-doing').map((t) => t.id);
+
+  it('moves a task into the middle of another column', async () => {
+    setupBoard();
+
+    const res = await moveTaskRequest('task-b', OWNER, { targetColumnId: 'col-doing', targetPosition: 1 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.task).toMatchObject({ id: 'task-b', position: 1, columnId: 'col-doing' });
+    expect(todoOrder()).toEqual(['task-a', 'task-c', 'task-d']);
+    expect(doingOrder()).toEqual(['task-x', 'task-b', 'task-y']);
+    expectAllColumnsContiguous();
+  });
+
+  it('moves a task into an empty column at index 0', async () => {
+    addBoard('board-1', 'Project', OWNER.id);
+    addColumn('board-1', 'col-todo', 'Todo', 0);
+    addColumn('board-1', 'col-done', 'Done', 1);
+    addTask('col-todo', 'task-a', 'A', 0);
+    addTask('col-todo', 'task-b', 'B', 1);
+
+    const res = await moveTaskRequest('task-b', OWNER, { targetColumnId: 'col-done', targetPosition: 0 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.task).toMatchObject({ id: 'task-b', position: 0, columnId: 'col-done' });
+    expect(columnTasks('col-todo').map((t) => t.id)).toEqual(['task-a']);
+    expect(columnTasks('col-done').map((t) => t.id)).toEqual(['task-b']);
+    expectAllColumnsContiguous();
+  });
+
+  it('moves a task to index 0 of a non-empty column', async () => {
+    setupBoard();
+
+    const res = await moveTaskRequest('task-c', OWNER, { targetColumnId: 'col-doing', targetPosition: 0 });
+
+    expect(res.status).toBe(200);
+    expect(doingOrder()).toEqual(['task-c', 'task-x', 'task-y']);
+    expectAllColumnsContiguous();
+  });
+
+  it('moves a task to the end of another column (position == count)', async () => {
+    setupBoard();
+
+    const res = await moveTaskRequest('task-a', OWNER, { targetColumnId: 'col-doing', targetPosition: 2 });
+
+    expect(res.status).toBe(200);
+    expect(doingOrder()).toEqual(['task-x', 'task-y', 'task-a']);
+    expectAllColumnsContiguous();
+  });
+
+  it('returns both columns’ orderings in the response', async () => {
+    setupBoard();
+
+    const res = await moveTaskRequest('task-d', OWNER, { targetColumnId: 'col-doing', targetPosition: 0 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.sourceColumn).toEqual({
+      id: 'col-todo',
+      tasks: [
+        { id: 'task-a', position: 0 },
+        { id: 'task-b', position: 1 },
+        { id: 'task-c', position: 2 },
+      ],
+    });
+    expect(res.body.data.destinationColumn).toEqual({
+      id: 'col-doing',
+      tasks: [
+        { id: 'task-d', position: 0 },
+        { id: 'task-x', position: 1 },
+        { id: 'task-y', position: 2 },
+      ],
+    });
+  });
+});
