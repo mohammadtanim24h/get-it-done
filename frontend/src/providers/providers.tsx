@@ -1,6 +1,7 @@
 'use client';
 
-// Root provider composition. Auth/session providers will be added in a later phase.
+import { AuthProvider } from './auth-provider';
+
 export function Providers({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return <AuthProvider>{children}</AuthProvider>;
 }
