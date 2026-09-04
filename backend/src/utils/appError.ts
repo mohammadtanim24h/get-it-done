@@ -37,6 +37,13 @@ export class ValidationError extends AppError {
   }
 }
 
+export class UnauthorizedError extends AppError {
+  constructor(message = 'Authentication required', details?: unknown) {
+    super(401, 'UNAUTHORIZED', message, details);
+    this.name = 'UnauthorizedError';
+  }
+}
+
 export class ConflictError extends AppError {
   constructor(message = 'Resource already exists', details?: unknown) {
     super(409, 'CONFLICT', message, details);

@@ -31,5 +31,8 @@ backend/prisma/*.db
 .DS_Store
 Thumbs.db
 
+# Planning docs (agent-generated implementation plans)
+docs/superpowers/
+
 # Prisma generated client (regenerated via prisma generate)
 backend/src/generated/

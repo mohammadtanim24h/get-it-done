@@ -42,6 +42,14 @@ if (!isTest && databaseUrl === '') {
   );
 }
 
+const parseJwtSecret = (value: string | undefined): string => {
+  if (value !== undefined && value !== '') return value;
+  if (isTest) return 'test-jwt-secret';
+  throw new Error(
+    'Required environment variable JWT_SECRET is not set. Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
+  );
+};
+
 export const env = {
   nodeEnv,
   isDevelopment: nodeEnv === 'development',
@@ -51,4 +59,7 @@ export const env = {
   apiPrefix: process.env.API_PREFIX ?? '/api',
   corsOrigins: parseCorsOrigin(process.env.CORS_ORIGIN),
   databaseUrl,
+  jwtSecret: parseJwtSecret(process.env.JWT_SECRET),
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1h',
+  jwtCookieName: process.env.JWT_COOKIE_NAME ?? 'access_token',
 } as const;

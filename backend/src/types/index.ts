@@ -7,6 +7,7 @@ export type ErrorCode =
   | 'INVALID_JSON'
   | 'PAYLOAD_TOO_LARGE'
   | 'VALIDATION_ERROR'
+  | 'UNAUTHORIZED'
   | 'CONFLICT'
   | 'NOT_FOUND'
   | 'SERVICE_UNAVAILABLE';
