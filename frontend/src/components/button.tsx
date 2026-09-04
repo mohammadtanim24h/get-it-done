@@ -12,6 +12,18 @@ const variantClasses: Record<ButtonVariant, string> = {
   ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-slate-400',
 };
 
+/** Class names that make any element (e.g. next/link anchors) look like a Button. */
+export function buttonClasses(variant: ButtonVariant = 'primary', className?: string): string {
+  return cn(
+    'inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors',
+    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
+    variantClasses[variant],
+    className,
+  );
+}
+
+export type { ButtonVariant };
+
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   loading?: boolean;
@@ -27,13 +39,7 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
-      className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
-        'disabled:cursor-not-allowed disabled:opacity-60',
-        variantClasses[variant],
-        className,
-      )}
+      className={cn(buttonClasses(variant, className), 'disabled:cursor-not-allowed disabled:opacity-60')}
       disabled={disabled || loading}
       {...rest}
     >

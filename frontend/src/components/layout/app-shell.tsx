@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
-import { Button } from '@/components/button';
+import { Button, buttonClasses } from '@/components/button';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
@@ -41,8 +41,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </Button>
               </>
             ) : (
-              <Link href="/login" tabIndex={-1}>
-                <Button>Sign in</Button>
+              <Link href="/login" className={buttonClasses()}>
+                Sign in
               </Link>
             )}
           </div>

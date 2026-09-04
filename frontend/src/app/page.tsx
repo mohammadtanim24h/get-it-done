@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Button } from '@/components/button';
+import { buttonClasses } from '@/components/button';
 import { LoadingState } from '@/components/loading-state';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -20,16 +20,16 @@ export default function HomePage() {
         columns, and tasks.
       </p>
       {status === 'authenticated' ? (
-        <Link href="/boards" tabIndex={-1}>
-          <Button>Go to your boards</Button>
+        <Link href="/boards" className={buttonClasses()}>
+          Go to your boards
         </Link>
       ) : (
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <Link href="/login" tabIndex={-1}>
-            <Button>Sign in</Button>
+          <Link href="/login" className={buttonClasses()}>
+            Sign in
           </Link>
-          <Link href="/register" tabIndex={-1}>
-            <Button variant="secondary">Create account</Button>
+          <Link href="/register" className={buttonClasses('secondary')}>
+            Create account
           </Link>
         </div>
       )}
