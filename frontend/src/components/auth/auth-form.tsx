@@ -3,10 +3,10 @@ import { cn } from '@/lib/utils';
 export const authFieldClasses =
   'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
 
-export function FieldError({ messages }: { messages?: string[] }) {
+export function FieldError({ id, messages }: { id: string; messages?: string[] }) {
   if (!messages || messages.length === 0) return null;
   return (
-    <p className="text-sm text-red-600" role="alert">
+    <p id={id} className="text-sm text-red-600" role="alert">
       {messages.join(' ')}
     </p>
   );

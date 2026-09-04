@@ -41,6 +41,7 @@ export function Button({
     <button
       className={cn(buttonClasses(variant, className), 'disabled:cursor-not-allowed disabled:opacity-60')}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...rest}
     >
       {loading && <Spinner className="h-4 w-4" />}

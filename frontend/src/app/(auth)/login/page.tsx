@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/button';
 import { useAuth } from '@/hooks/use-auth';
 import { ApiClientError } from '@/services/api-client';
+import { validateLoginForm } from '@/lib/validation';
 
 export default function LoginPage() {
   const { status, login } = useAuth();
@@ -23,14 +24,25 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (status === 'authenticated') router.replace('/boards');
   }, [status, router]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmitting(true);
     setError(null);
+
+    const errors = validateLoginForm({ email, password });
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      (errors.email ? emailRef : passwordRef).current?.focus();
+      return;
+    }
+
+    setSubmitting(true);
     setFieldErrors({});
     try {
       await login({ email, password });
@@ -67,30 +79,36 @@ export default function LoginPage() {
             Email
           </label>
           <input
+            ref={emailRef}
             id="email"
             type="email"
             autoComplete="email"
             required
+            aria-invalid={fieldErrors.email ? true : undefined}
+            aria-describedby={fieldErrors.email ? 'email-error' : undefined}
             className={authFieldClasses}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <FieldError messages={fieldErrors.email} />
+          <FieldError id="email-error" messages={fieldErrors.email} />
         </div>
         <div className="space-y-1">
           <label htmlFor="password" className="block text-sm font-medium text-slate-700">
             Password
           </label>
           <input
+            ref={passwordRef}
             id="password"
             type="password"
             autoComplete="current-password"
             required
+            aria-invalid={fieldErrors.password ? true : undefined}
+            aria-describedby={fieldErrors.password ? 'password-error' : undefined}
             className={authFieldClasses}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <FieldError messages={fieldErrors.password} />
+          <FieldError id="password-error" messages={fieldErrors.password} />
         </div>
         <Button type="submit" className="w-full" loading={submitting}>
           Sign in
