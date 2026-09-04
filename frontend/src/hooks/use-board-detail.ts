@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiClientError } from '@/services/api-client';
 import { boardsService } from '@/services/boards';
 import type { BoardDetail, BoardMember } from '@/types/models';
@@ -30,15 +30,22 @@ export function useBoardDetail(boardId: string | null): UseBoardDetailResult {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
+  // Guards against stale responses: a fetch started for board A must not
+  // overwrite state after the hook has moved on to board B.
+  const requestSeq = useRef(0);
 
   const reload = useCallback(async () => {
     if (!boardId) return;
+    const seq = ++requestSeq.current;
     setStatus('loading');
     setLoadError(null);
     try {
-      setBoard(await boardsService.getBoard(boardId));
+      const loaded = await boardsService.getBoard(boardId);
+      if (seq !== requestSeq.current) return;
+      setBoard(loaded);
       setStatus('ready');
     } catch (err) {
+      if (seq !== requestSeq.current) return;
       if (err instanceof ApiClientError) {
         if (err.status === 404) {
           setStatus('not-found');
