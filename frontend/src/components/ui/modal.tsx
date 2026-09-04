@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 export interface ModalProps {
@@ -13,6 +13,10 @@ export interface ModalProps {
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea, input:not([disabled]), select, [tabindex]:not([tabindex="-1"])';
 
+/** Ids of currently-open modals, bottom-most first. Only the topmost reacts to Escape. */
+const openDialogStack: number[] = [];
+let nextDialogId = 1;
+
 /**
  * Minimal accessible modal. Callers pass a guarded `onClose` if closing must
  * be blocked during a mutation. Elements with `data-autofocus` receive
@@ -20,6 +24,7 @@ const FOCUSABLE =
  */
 export function Modal({ open, title, onClose, children }: ModalProps) {
   const titleId = useId();
+  const [dialogId] = useState(() => nextDialogId++);
   const dialogRef = useRef<HTMLDivElement>(null);
   // Keep the latest onClose for listeners without re-running the effect on
   // every render (callers usually pass an inline arrow function).
@@ -32,6 +37,7 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
     if (!open) return;
     const dialog = dialogRef.current;
     if (!dialog) return;
+    openDialogStack.push(dialogId);
 
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const focusTarget =
@@ -44,6 +50,7 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
+        if (openDialogStack[openDialogStack.length - 1] !== dialogId) return;
         onCloseRef.current();
         return;
       }
@@ -68,10 +75,11 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
     document.addEventListener('keydown', handleKeyDown, true);
     return () => {
       document.removeEventListener('keydown', handleKeyDown, true);
+      openDialogStack.splice(openDialogStack.indexOf(dialogId), 1);
       document.body.style.overflow = previousOverflow;
       previouslyFocused?.focus();
     };
-  }, [open]);
+  }, [open, dialogId]);
 
   if (!open) return null;
 
