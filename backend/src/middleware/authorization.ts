@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
 import { NotFoundError, UnauthorizedError } from '../utils/appError';
-import { requireBoardAccess } from '../services/authorizationService';
+import { requireBoardAccess, requireColumnBoardAccess, requireTaskBoardAccess } from '../services/authorizationService';
 import type { BoardPermission } from '../types/authorization';
 
 /**
@@ -32,6 +32,57 @@ export const authorizeBoard =
       }
 
       req.boardAccess = await requireBoardAccess(req.user.id, boardId, permission);
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+
+/**
+ * Column-scoped routes (/columns/:columnId/...) resolve the column's parent
+ * board FIRST, then authorize against that board. The resolved access
+ * context (including boardId) is attached to req.boardAccess.
+ */
+export const authorizeColumn =
+  (permission: BoardPermission): RequestHandler =>
+  async (req, _res, next) => {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError();
+      }
+
+      const columnId = req.params.columnId;
+      if (typeof columnId !== 'string' || columnId === '') {
+        throw new NotFoundError('Column not found');
+      }
+
+      req.boardAccess = await requireColumnBoardAccess(req.user.id, columnId, permission);
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+
+/**
+ * Task-scoped routes (/tasks/:taskId) resolve the task's parent board (via
+ * its column) FIRST, then authorize against that board. The resolved boardId
+ * is attached to req.boardAccess and used by the service to re-verify
+ * task/board consistency.
+ */
+export const authorizeTask =
+  (permission: BoardPermission): RequestHandler =>
+  async (req, _res, next) => {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError();
+      }
+
+      const taskId = req.params.taskId;
+      if (typeof taskId !== 'string' || taskId === '') {
+        throw new NotFoundError('Task not found');
+      }
+
+      req.boardAccess = await requireTaskBoardAccess(req.user.id, taskId, permission);
       next();
     } catch (error) {
       next(error);

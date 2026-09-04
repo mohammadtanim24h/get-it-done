@@ -90,3 +90,40 @@ export async function requireBoardAccess(
   }
   return access;
 }
+
+/**
+ * Resolve a column to its parent board and authorize against that board.
+ * Task/column routes must go through here (or requireTaskBoardAccess) so a
+ * column/task id can never bypass board access checks. 404 when the column
+ * does not exist.
+ */
+export async function requireColumnBoardAccess(
+  userId: string,
+  columnId: string,
+  permission: BoardPermission,
+): Promise<BoardAccess> {
+  const column = await prisma.column.findUnique({ where: { id: columnId }, select: { boardId: true } });
+  if (!column) {
+    throw new NotFoundError('Column not found');
+  }
+  return requireBoardAccess(userId, column.boardId, permission);
+}
+
+/**
+ * Resolve a task to its parent board (via its column) and authorize
+ * against that board. 404 when the task does not exist.
+ */
+export async function requireTaskBoardAccess(
+  userId: string,
+  taskId: string,
+  permission: BoardPermission,
+): Promise<BoardAccess> {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { column: { select: { boardId: true } } },
+  });
+  if (!task) {
+    throw new NotFoundError('Task not found');
+  }
+  return requireBoardAccess(userId, task.column.boardId, permission);
+}
