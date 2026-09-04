@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { validateLoginForm, validateRegisterForm } from './validation';
+import {
+  validateBoardTitle,
+  validateLoginForm,
+  validateRegisterForm,
+  validateShareForm,
+} from './validation';
 
 describe('validateLoginForm', () => {
   it('passes for valid credentials', () => {
@@ -72,5 +77,42 @@ describe('validateRegisterForm', () => {
   it('collects errors from multiple fields', () => {
     const errors = validateRegisterForm({ name: '', email: 'bad', password: 'x' });
     expect(Object.keys(errors).sort()).toEqual(['email', 'name', 'password']);
+  });
+});
+
+describe('validateBoardTitle', () => {
+  it('accepts a normal title', () => {
+    expect(validateBoardTitle('Roadmap')).toEqual([]);
+  });
+
+  it('requires a non-empty title', () => {
+    expect(validateBoardTitle('')).toEqual(['title is required']);
+    expect(validateBoardTitle('   ')).toEqual(['title is required']);
+  });
+
+  it('rejects titles over 120 characters', () => {
+    expect(validateBoardTitle('a'.repeat(121))).toEqual([
+      'title must be at most 120 characters',
+    ]);
+  });
+
+  it('measures length after trimming', () => {
+    expect(validateBoardTitle(`${'a'.repeat(120)}   `)).toEqual([]);
+  });
+});
+
+describe('validateShareForm', () => {
+  it('requires an email', () => {
+    expect(validateShareForm({ email: '' })).toEqual({ email: ['email is required'] });
+  });
+
+  it('rejects an invalid email', () => {
+    expect(validateShareForm({ email: 'not-an-email' })).toEqual({
+      email: ['email must be a valid email address'],
+    });
+  });
+
+  it('accepts a valid email', () => {
+    expect(validateShareForm({ email: 'ada@example.com' })).toEqual({});
   });
 });

@@ -49,3 +49,29 @@ export function validateRegisterForm({ name, email, password }: RegisterInput): 
   }
   return errors;
 }
+
+/**
+ * Mirrors the backend's board title schema: trimmed, 1-120 characters.
+ * See backend/src/validators/boardValidators.ts.
+ */
+export function validateBoardTitle(title: string): string[] {
+  const errors: string[] = [];
+  if (!title.trim()) {
+    errors.push('title is required');
+  } else if (title.trim().length > 120) {
+    errors.push('title must be at most 120 characters');
+  }
+  return errors;
+}
+
+export interface ShareMemberInput {
+  email: string;
+}
+
+/** Mirrors the backend's addBoardMemberSchema. */
+export function validateShareForm({ email }: ShareMemberInput): FieldErrors {
+  const errors: FieldErrors = {};
+  const emailErrors = validateEmail(email);
+  if (emailErrors.length > 0) errors.email = emailErrors;
+  return errors;
+}
