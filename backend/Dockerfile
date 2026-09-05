@@ -7,7 +7,9 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY prisma ./prisma
 COPY prisma.config.ts ./
-RUN npx prisma generate
+# prisma.config.ts requires DATABASE_URL to load; generation never connects,
+# so a placeholder is sufficient at build time.
+RUN DATABASE_URL="postgresql://build:build@localhost:5432/build?schema=public" npx prisma generate
 COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build && npm prune --omit=dev
