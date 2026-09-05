@@ -1,11 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
+import {
+  DndContext,
+  KeyboardSensor,
+  MeasuringStrategy,
+  PointerSensor,
+  closestCorners,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { ColumnForm } from './ColumnForm';
+import { computeMoveIntent } from './compute-move';
 import { KanbanColumn } from './KanbanColumn';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
+import { ApiClientError } from '@/services/api-client';
 import type { UseBoardDataResult } from '@/hooks/use-board-data';
 
 export interface BoardViewProps {
@@ -24,8 +37,38 @@ export function BoardView({ dataApi }: BoardViewProps) {
     createTask,
     updateTask,
     deleteTask,
+    moveTask,
   } = dataApi;
   const [addColumnOpen, setAddColumnOpen] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
+
+  // PointerSensor (with a small distance threshold so clicks on card buttons
+  // don't start drags) covers mouse and touch; KeyboardSensor gives the same
+  // interactions via space/enter + arrow keys on the drag handle.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const intent = computeMoveIntent(
+        columns,
+        String(event.active.id),
+        String(event.over?.id ?? ''),
+      );
+      if (!intent) return;
+      setMoveError(null);
+      moveTask(intent.taskId, intent.targetColumnId, intent.targetPosition).catch((err) => {
+        setMoveError(
+          err instanceof ApiClientError
+            ? err.message
+            : 'Something went wrong while moving the task. Please try again.',
+        );
+      });
+    },
+    [columns, moveTask],
+  );
 
   const totalTasks = columns.reduce((sum, column) => sum + column.tasks.length, 0);
 
@@ -90,19 +133,37 @@ export function BoardView({ dataApi }: BoardViewProps) {
         {columns.length} {columns.length === 1 ? 'column' : 'columns'}, {totalTasks}{' '}
         {totalTasks === 1 ? 'task' : 'tasks'}
       </p>
-      <div className="-mx-1 flex items-start gap-4 overflow-x-auto px-1 pb-4">
-        {columns.map((column) => (
-          <KanbanColumn
-            key={column.id}
-            column={column}
-            onRenameColumn={renameColumn}
-            onDeleteColumn={deleteColumn}
-            onCreateTask={createTask}
-            onUpdateTask={updateTask}
-            onDeleteTask={deleteTask}
-          />
-        ))}
-      </div>
+      {moveError && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+        >
+          <p className="min-w-0 break-words">Couldn&apos;t move the task. {moveError}</p>
+          <Button variant="ghost" className="shrink-0 px-2 py-1" onClick={() => setMoveError(null)}>
+            Dismiss
+          </Button>
+        </div>
+      )}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragEnd={handleDragEnd}
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+      >
+        <div className="-mx-1 flex items-start gap-4 overflow-x-auto px-1 pb-4">
+          {columns.map((column) => (
+            <KanbanColumn
+              key={column.id}
+              column={column}
+              onRenameColumn={renameColumn}
+              onDeleteColumn={deleteColumn}
+              onCreateTask={createTask}
+              onUpdateTask={updateTask}
+              onDeleteTask={deleteTask}
+            />
+          ))}
+        </div>
+      </DndContext>
       {addColumnForm}
     </section>
   );

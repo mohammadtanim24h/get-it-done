@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { memo, useState } from 'react';
+import { useDroppable } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { AddTaskComposer } from './AddTaskComposer';
 import { ColumnForm } from './ColumnForm';
 import { TaskCard } from './TaskCard';
@@ -23,7 +25,7 @@ function errorMessage(err: unknown): string {
   return err instanceof ApiClientError ? err.message : 'Something went wrong. Please try again.';
 }
 
-export function KanbanColumn({
+export const KanbanColumn = memo(function KanbanColumn({
   column,
   onRenameColumn,
   onDeleteColumn,
@@ -31,6 +33,9 @@ export function KanbanColumn({
   onUpdateTask,
   onDeleteTask,
 }: KanbanColumnProps) {
+  // The task list is a drop target in its own right so empty columns (and
+  // drops below the last card) still resolve to this column.
+  const { setNodeRef, isOver } = useDroppable({ id: column.id });
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingColumn, setDeletingColumn] = useState(false);
@@ -98,18 +103,29 @@ export function KanbanColumn({
         />
       </header>
 
-      <ul className="flex flex-col gap-2 px-3 pb-2" aria-label={`Tasks in ${column.title}`}>
-        {column.tasks.map((task) => (
-          <TaskCard
-            key={task.id}
-            task={task}
-            onEdit={(t) => setEditingTask(t)}
-            onDelete={(t) => {
-              setDeleteTaskError(null);
-              setPendingTaskDelete(t);
-            }}
-          />
-        ))}
+      <ul
+        ref={setNodeRef}
+        className={`flex min-h-10 flex-col gap-2 rounded-lg px-3 pb-2 transition-colors ${
+          isOver ? 'bg-indigo-100/70 ring-2 ring-inset ring-indigo-300' : ''
+        }`}
+        aria-label={`Tasks in ${column.title}`}
+      >
+        <SortableContext
+          items={column.tasks.map((task) => task.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {column.tasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              onEdit={(t) => setEditingTask(t)}
+              onDelete={(t) => {
+                setDeleteTaskError(null);
+                setPendingTaskDelete(t);
+              }}
+            />
+          ))}
+        </SortableContext>
       </ul>
       {column.tasks.length === 0 && (
         <p className="px-3 pb-2 text-xs text-slate-400">No tasks yet</p>
@@ -179,4 +195,4 @@ export function KanbanColumn({
       />
     </section>
   );
-}
+});

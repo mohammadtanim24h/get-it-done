@@ -1,12 +1,10 @@
 import { apiClient } from './api-client';
 import type { ApiEnvelope } from '@/types/api';
-import type { Task } from '@/types/models';
+import type { Task, TaskMoveResult } from '@/types/models';
 
 /**
  * Task CRUD within a column. The backend appends new tasks and returns
- * lists ordered by position (docs/API.md). Task movement between columns
- * (`PATCH /tasks/:id/move`) is intentionally out of scope here until
- * drag-and-drop lands.
+ * lists ordered by position (docs/API.md).
  */
 export const tasksService = {
   async listTasks(columnId: string): Promise<Task[]> {
@@ -40,5 +38,22 @@ export const tasksService = {
 
   async deleteTask(taskId: string): Promise<void> {
     await apiClient.delete(`/tasks/${taskId}`);
+  },
+
+  /**
+   * Move a task within or between columns. `targetPosition` is a zero-based
+   * index into the target column (same-column: `0..n-1`, cross-column:
+   * `0..m`). The backend is the source of truth for ordering — the response
+   * carries the full post-move ordering of both affected columns.
+   */
+  async moveTask(
+    taskId: string,
+    input: { targetColumnId: string; targetPosition: number },
+  ): Promise<TaskMoveResult> {
+    const { data } = await apiClient.patch<ApiEnvelope<TaskMoveResult>>(
+      `/tasks/${taskId}/move`,
+      input,
+    );
+    return data;
   },
 };

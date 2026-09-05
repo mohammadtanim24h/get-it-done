@@ -65,6 +65,33 @@ describe('tasksService', () => {
     expect(JSON.parse(init.body as string)).toEqual({ title: 'New', description: 'Updated' });
   });
 
+  it('moveTask patches target column and position and unwraps the result', async () => {
+    const moveResult = {
+      task: { ...task, columnId: 'c2', position: 1 },
+      sourceColumn: { id: 'c1', tasks: [{ id: 't0', position: 0 }] },
+      destinationColumn: {
+        id: 'c2',
+        tasks: [
+          { id: 't9', position: 0 },
+          { id: 't1', position: 1 },
+        ],
+      },
+    };
+    const fetchMock = mockFetch({ data: moveResult });
+
+    await expect(
+      tasksService.moveTask('t1', { targetColumnId: 'c2', targetPosition: 1 }),
+    ).resolves.toEqual(moveResult);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://localhost:4000/api/tasks/t1/move');
+    expect(init.method).toBe('PATCH');
+    expect(JSON.parse(init.body as string)).toEqual({
+      targetColumnId: 'c2',
+      targetPosition: 1,
+    });
+  });
+
   it('deleteTask resolves without content on 204', async () => {
     const fetchMock = mockFetch(null, 204);
 
