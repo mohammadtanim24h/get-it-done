@@ -400,7 +400,7 @@ npm run dev                   # http://localhost:4000
 
 # 2. Frontend (new terminal)
 cd frontend
-cp .env.example .env          # defaults point at localhost:4000
+cp .env.example .env          # optional: code defaults already point at localhost:4000
 npm install
 npm run dev                   # http://localhost:3000
 ```
@@ -453,9 +453,10 @@ injects its own values.
 | `JWT_EXPIRES_IN` | 1h          | Token lifetime (jsonwebtoken format: `30m`, `1h`, `7d`)                  |
 | `JWT_COOKIE_NAME`| access_token | Name of the session cookie                                              |
 
-**`frontend/.env`** — `NEXT_PUBLIC_*` variables are inlined into the browser
-bundle at build time, so changing them requires a rebuild (or dev-server
-restart).
+**`frontend/.env`** — entirely optional; the code has the same defaults
+built in (`frontend/src/lib/config.ts`), so local development works without
+the file. `NEXT_PUBLIC_*` variables are inlined into the browser bundle at
+build time, so changing them requires a rebuild (or dev-server restart).
 
 | Variable                 | Default               | Meaning                              |
 |--------------------------|-----------------------|--------------------------------------|
