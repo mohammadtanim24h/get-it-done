@@ -24,7 +24,7 @@ export function BoardCard({ board, onRename, onShare, onDelete }: BoardCardProps
         className="absolute inset-0 rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
       />
 
-      <div className="relative z-10 flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-2">
         <h2 className="min-w-0 truncate text-sm font-semibold text-slate-900 group-hover:text-indigo-700">
           {board.title}
         </h2>
