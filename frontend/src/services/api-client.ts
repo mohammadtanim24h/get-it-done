@@ -39,6 +39,21 @@ export class ApiClientError extends Error {
 
 type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown };
 
+/** Pages that handle 401s inline (credential failures, anonymous session probes). */
+const AUTH_PATHS = new Set(['/login', '/register']);
+
+/**
+ * A 401 outside the auth pages means the session cookie expired or was
+ * revoked mid-session. Send the user to the login page (a full navigation
+ * also drops all in-memory client state). Login/register pages are exempt
+ * so a bad password doesn't bounce the user off the form.
+ */
+function handleStaleSession() {
+  if (typeof window === 'undefined') return;
+  if (AUTH_PATHS.has(window.location.pathname)) return;
+  window.location.assign('/login');
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, headers, ...rest } = options;
 
@@ -69,6 +84,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (!res.ok) {
+    if (res.status === 401) handleStaleSession();
     let message = `Request failed with status ${res.status}`;
     let code: ApiClientErrorCode = 'UNKNOWN';
     let details: unknown;

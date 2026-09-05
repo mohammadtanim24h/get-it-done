@@ -50,7 +50,7 @@ export function BoardCard({ board, onRename, onShare, onDelete }: BoardCardProps
             Shared with you
           </span>
         )}
-        <span className="text-xs text-slate-400">Updated {formatDate(board.updatedAt)}</span>
+        <span className="text-xs text-slate-500">Updated {formatDate(board.updatedAt)}</span>
       </div>
     </div>
   );

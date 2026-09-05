@@ -89,7 +89,7 @@ export function TaskForm({ open, task, onSubmit, onClose }: TaskFormProps) {
         </div>
         <div className="space-y-1">
           <label htmlFor="task-form-description" className="block text-sm font-medium text-slate-700">
-            Description <span className="font-normal text-slate-400">(optional)</span>
+            Description <span className="font-normal text-slate-500">(optional)</span>
           </label>
           <textarea
             id="task-form-description"

@@ -89,6 +89,7 @@ export default function LoginPage() {
             className={authFieldClasses}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            disabled={submitting}
           />
           <FieldError id="email-error" messages={fieldErrors.email} />
         </div>
@@ -107,6 +108,7 @@ export default function LoginPage() {
             className={authFieldClasses}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            disabled={submitting}
           />
           <FieldError id="password-error" messages={fieldErrors.password} />
         </div>

@@ -16,6 +16,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function stubWindowLocation(pathname: string) {
+  const assign = vi.fn();
+  vi.stubGlobal('window', { location: { pathname, assign } });
+  return assign;
+}
+
 describe('apiClient request', () => {
   it('sends credentials with every request and parses JSON bodies', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ data: { ok: true } }));
@@ -114,5 +120,31 @@ describe('apiClient error handling', () => {
     expect(err.code).toBe('NETWORK_ERROR');
     expect(err.status).toBe(0);
     expect(err.isUnauthorized).toBe(false);
+  });
+});
+
+describe('stale session handling', () => {
+  it('redirects to /login on a 401 outside the auth pages', async () => {
+    const assign = stubWindowLocation('/boards');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ error: { message: 'Unauthorized' } }, 401)),
+    );
+
+    await catchClientError(apiClient.get('/boards'));
+
+    expect(assign).toHaveBeenCalledWith('/login');
+  });
+
+  it('does not redirect on a 401 while already on /login', async () => {
+    const assign = stubWindowLocation('/login');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ error: { message: 'Invalid credentials' } }, 401)),
+    );
+
+    await catchClientError(apiClient.post('/auth/login', {}));
+
+    expect(assign).not.toHaveBeenCalled();
   });
 });

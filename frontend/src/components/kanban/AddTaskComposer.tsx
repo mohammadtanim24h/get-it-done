@@ -110,7 +110,7 @@ export function AddTaskComposer({ columnId, onCreateTask }: AddTaskComposerProps
           Cancel
         </Button>
       </div>
-      <p className="text-xs text-slate-400">Enter to add · Shift+Enter for a new line · Esc to cancel</p>
+      <p className="text-xs text-slate-500">Enter to add · Shift+Enter for a new line · Esc to cancel</p>
     </div>
   );
 }

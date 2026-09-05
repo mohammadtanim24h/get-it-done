@@ -92,6 +92,7 @@ export default function RegisterPage() {
             className={authFieldClasses}
             value={name}
             onChange={(e) => setName(e.target.value)}
+            disabled={submitting}
           />
           <FieldError id="name-error" messages={fieldErrors.name} />
         </div>
@@ -110,6 +111,7 @@ export default function RegisterPage() {
             className={authFieldClasses}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            disabled={submitting}
           />
           <FieldError id="email-error" messages={fieldErrors.email} />
         </div>
@@ -128,6 +130,7 @@ export default function RegisterPage() {
             className={authFieldClasses}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            disabled={submitting}
           />
           <FieldError id="password-error" messages={fieldErrors.password} />
         </div>

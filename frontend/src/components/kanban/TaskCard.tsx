@@ -11,7 +11,7 @@ export interface TaskCardProps {
 }
 
 const iconButtonClasses =
-  'rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600';
+  'rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600';
 
 export function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
   const {
@@ -39,7 +39,7 @@ export function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
           type="button"
           ref={setActivatorNodeRef}
           aria-label={`Move task ${task.title}. Press space or enter to pick up, arrow keys to move, space or enter to drop, escape to cancel.`}
-          className={`${iconButtonClasses} mt-0.5 cursor-grab touch-none text-slate-300 hover:text-slate-500 active:cursor-grabbing`}
+          className={`${iconButtonClasses} mt-0.5 cursor-grab touch-none text-slate-400 hover:text-slate-600 active:cursor-grabbing`}
           {...attributes}
           {...listeners}
         >

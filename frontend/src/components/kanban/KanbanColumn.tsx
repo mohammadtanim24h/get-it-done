@@ -128,7 +128,7 @@ export const KanbanColumn = memo(function KanbanColumn({
         </SortableContext>
       </ul>
       {column.tasks.length === 0 && (
-        <p className="px-3 pb-2 text-xs text-slate-400">No tasks yet</p>
+        <p className="px-3 pb-2 text-xs text-slate-500">No tasks yet</p>
       )}
 
       <div className="px-3 pb-3">

@@ -19,6 +19,7 @@ export function DropdownMenu({ buttonLabel, items }: DropdownMenuProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -43,8 +44,45 @@ export function DropdownMenu({ buttonLabel, items }: DropdownMenuProps) {
     };
   }, [open]);
 
+  // Roving focus with arrow keys per the WAI-ARIA menu pattern (Tab still
+  // moves through items in DOM order and out of the menu, which closes it).
+  function handleMenuKeyDown(event: React.KeyboardEvent) {
+    const menuItems = Array.from(
+      menuRef.current?.querySelectorAll<HTMLButtonElement>('button') ?? [],
+    );
+    if (menuItems.length === 0) return;
+    const index = menuItems.indexOf(document.activeElement as HTMLButtonElement);
+    let next: number;
+    switch (event.key) {
+      case 'ArrowDown':
+        next = (index + 1 + menuItems.length) % menuItems.length;
+        break;
+      case 'ArrowUp':
+        next = index === -1 ? menuItems.length - 1 : (index - 1 + menuItems.length) % menuItems.length;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = menuItems.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    menuItems[next].focus();
+  }
+
   return (
-    <div ref={containerRef} className="relative">
+    <div
+      ref={containerRef}
+      className="relative"
+      onBlur={(event) => {
+        if (open && !event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false);
+        }
+      }}
+    >
       <button
         type="button"
         ref={toggleRef}
@@ -60,8 +98,10 @@ export function DropdownMenu({ buttonLabel, items }: DropdownMenuProps) {
       </button>
       {open && (
         <div
+          ref={menuRef}
           role="menu"
           aria-label={buttonLabel}
+          onKeyDown={handleMenuKeyDown}
           className="absolute right-0 z-20 mt-1 w-40 rounded-md border border-slate-200 bg-white py-1 shadow-lg"
         >
           {items.map((item) => (
