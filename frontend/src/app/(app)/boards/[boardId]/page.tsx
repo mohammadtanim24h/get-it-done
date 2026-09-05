@@ -6,15 +6,17 @@ import { useEffect, useState } from 'react';
 import { MembersPanel } from '@/components/boards/members-panel';
 import { RenameBoardDialog } from '@/components/boards/rename-board-dialog';
 import { ShareBoardDialog } from '@/components/boards/share-board-dialog';
+import { BoardView } from '@/components/kanban/BoardView';
 import { Button, buttonClasses } from '@/components/ui/button';
-import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/error-state';
+import { useBoardData } from '@/hooks/use-board-data';
 import { useBoardDetail } from '@/hooks/use-board-detail';
 import { formatDate } from '@/lib/format';
 
 export default function BoardDetailPage() {
   const params = useParams<{ boardId: string }>();
   const boardApi = useBoardDetail(params.boardId);
+  const boardData = useBoardData(params.boardId);
   const { board, status, loadError, reload } = boardApi;
 
   const [renameOpen, setRenameOpen] = useState(false);
@@ -124,10 +126,7 @@ export default function BoardDetailPage() {
         </div>
       </section>
 
-      <EmptyState
-        title="Tasks come next"
-        description="Columns and the drag-and-drop task board arrive in the next phase."
-      />
+      <BoardView dataApi={boardData} />
 
       <RenameBoardDialog
         open={renameOpen}

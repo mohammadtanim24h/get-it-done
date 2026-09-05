@@ -1,0 +1,109 @@
+'use client';
+
+import { useState } from 'react';
+import { ColumnForm } from './ColumnForm';
+import { KanbanColumn } from './KanbanColumn';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ErrorState } from '@/components/ui/error-state';
+import type { UseBoardDataResult } from '@/hooks/use-board-data';
+
+export interface BoardViewProps {
+  dataApi: UseBoardDataResult;
+}
+
+export function BoardView({ dataApi }: BoardViewProps) {
+  const {
+    columns,
+    status,
+    loadError,
+    reload,
+    createColumn,
+    renameColumn,
+    deleteColumn,
+    createTask,
+    updateTask,
+    deleteTask,
+  } = dataApi;
+  const [addColumnOpen, setAddColumnOpen] = useState(false);
+
+  const totalTasks = columns.reduce((sum, column) => sum + column.tasks.length, 0);
+
+  if (status === 'loading') {
+    return (
+      <div className="flex gap-4 overflow-hidden pb-4" role="status" aria-label="Loading board">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="h-64 w-64 shrink-0 animate-pulse rounded-xl border border-slate-200 bg-slate-100 sm:w-72"
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (status !== 'ready') {
+    const message =
+      status === 'not-found'
+        ? "This board doesn't exist or may have been deleted."
+        : status === 'forbidden'
+          ? "You don't have access to this board."
+          : loadError;
+    return <ErrorState message={message} onRetry={() => void reload()} />;
+  }
+
+  const addColumnForm = (
+    <ColumnForm
+      open={addColumnOpen}
+      column={null}
+      onSubmit={async (title) => {
+        await createColumn(title);
+      }}
+      onClose={() => setAddColumnOpen(false)}
+    />
+  );
+
+  if (columns.length === 0) {
+    return (
+      <>
+        <EmptyState
+          title="No columns yet"
+          description="Add your first column to start tracking work."
+          action={<Button onClick={() => setAddColumnOpen(true)}>Add column</Button>}
+        />
+        {addColumnForm}
+      </>
+    );
+  }
+
+  return (
+    <section aria-labelledby="board-canvas-heading" className="space-y-3">
+      <div className="flex items-center justify-between gap-4">
+        <h2 id="board-canvas-heading" className="text-sm font-semibold text-slate-900">
+          Board
+        </h2>
+        <Button variant="secondary" onClick={() => setAddColumnOpen(true)}>
+          Add column
+        </Button>
+      </div>
+      <p aria-live="polite" className="sr-only">
+        {columns.length} {columns.length === 1 ? 'column' : 'columns'}, {totalTasks}{' '}
+        {totalTasks === 1 ? 'task' : 'tasks'}
+      </p>
+      <div className="-mx-1 flex items-start gap-4 overflow-x-auto px-1 pb-4">
+        {columns.map((column) => (
+          <KanbanColumn
+            key={column.id}
+            column={column}
+            onRenameColumn={renameColumn}
+            onDeleteColumn={deleteColumn}
+            onCreateTask={createTask}
+            onUpdateTask={updateTask}
+            onDeleteTask={deleteTask}
+          />
+        ))}
+      </div>
+      {addColumnForm}
+    </section>
+  );
+}
