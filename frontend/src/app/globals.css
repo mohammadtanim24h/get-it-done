@@ -1,1 +1,10 @@
 @import "tailwindcss";
+
+/* Tailwind v4 resets buttons to the default cursor; restore the pointer
+   for enabled buttons. Utilities (e.g. cursor-grab, cursor-not-allowed)
+   still override this. */
+@layer base {
+  button:enabled {
+    cursor: pointer;
+  }
+}
