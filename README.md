@@ -98,12 +98,52 @@ npm run db:seed            # prisma db seed
 `backend/.env` must contain a `DATABASE_URL` whose user, password, port, and
 database name match the compose variables above.
 
-Useful commands:
+## Full Stack with Docker
+
+The entire application (PostgreSQL + backend + frontend) runs via
+docker-compose:
 
 ```bash
-docker compose logs -f postgres   # follow database logs
-docker compose down               # stop (data persists in the postgres-data volume)
-docker compose down -v            # stop and DELETE all database data
+cp .env.example .env
+# generate a JWT secret and set JWT_SECRET in .env:
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+docker compose build
+docker compose up -d
+docker compose ps     # postgres, migrate (exited 0), backend, frontend healthy
+```
+
+Then open http://localhost:3000 (frontend) and http://localhost:4000/health
+(backend).
+
+### Migrations
+
+Migrations are applied by a dedicated one-shot `migrate` container running
+`prisma migrate deploy` — application startup never migrates. Compose runs it
+automatically before the backend starts. To apply/seed manually:
+
+```bash
+docker compose run --rm migrate                      # prisma migrate deploy
+docker compose run --rm migrate npx prisma db seed   # seed the database
+```
+
+To create a new migration during development, use the host workflow
+(`cd backend && npm run prisma:migrate` with a reachable database), then
+rebuild: `docker compose build migrate`.
+
+### Environment / secrets
+
+All credentials come from the root `.env` file (see `.env.example`). Nothing
+secret is committed. `NEXT_PUBLIC_API_URL` is a Docker build arg because
+Next.js inlines `NEXT_PUBLIC_*` variables at build time; the value must be the
+URL the browser uses to reach the backend (default `http://localhost:4000`).
+
+### Useful commands
+
+```bash
+docker compose logs -f backend     # follow API logs
+docker compose down                # stop (data persists in postgres-data volume)
+docker compose down -v             # stop and DELETE all database data
 ```
 
 ## Planned Architecture
