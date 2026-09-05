@@ -65,3 +65,8 @@ export interface TaskMoveResult {
   sourceColumn: ColumnOrder;
   destinationColumn: ColumnOrder;
 }
+
+/** A column with its tasks nested — the board canvas's single source of truth. */
+export interface ColumnWithTasks extends BoardColumn {
+  tasks: Task[];
+}
