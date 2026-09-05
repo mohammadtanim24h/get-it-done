@@ -1,6 +1,6 @@
-import { randomBytes, scryptSync } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client.js';
+import { hashPassword } from '../src/utils/password';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -11,16 +11,6 @@ if (!connectionString) {
 }
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
-
-/**
- * Hash a password with scrypt (built into Node, no extra dependency).
- * Stored format: `scrypt:<saltHex>:<hashHex>`.
- */
-const hashPassword = (password: string): string => {
-  const salt = randomBytes(16);
-  const hash = scryptSync(password, salt, 64);
-  return `scrypt:${salt.toString('hex')}:${hash.toString('hex')}`;
-};
 
 async function main(): Promise<void> {
   if (!process.env.DATABASE_URL) {
@@ -38,7 +28,7 @@ async function main(): Promise<void> {
     data: {
       name: 'Alice Owner',
       email: 'alice@example.com',
-      passwordHash: hashPassword('password123'),
+      passwordHash: await hashPassword('password123'),
     },
   });
 
@@ -46,7 +36,7 @@ async function main(): Promise<void> {
     data: {
       name: 'Bob Member',
       email: 'bob@example.com',
-      passwordHash: hashPassword('password123'),
+      passwordHash: await hashPassword('password123'),
     },
   });
 
