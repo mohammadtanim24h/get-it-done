@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   validateBoardTitle,
+  validateColumnTitle,
   validateLoginForm,
   validateRegisterForm,
   validateShareForm,
+  validateTaskForm,
 } from './validation';
 
 describe('validateLoginForm', () => {
@@ -114,5 +116,46 @@ describe('validateShareForm', () => {
 
   it('accepts a valid email', () => {
     expect(validateShareForm({ email: 'ada@example.com' })).toEqual({});
+  });
+});
+
+describe('validateColumnTitle', () => {
+  it('accepts a normal title', () => {
+    expect(validateColumnTitle('To Do')).toEqual([]);
+  });
+
+  it('rejects empty and whitespace-only titles', () => {
+    expect(validateColumnTitle('')).toEqual(['title is required']);
+    expect(validateColumnTitle('   ')).toEqual(['title is required']);
+  });
+
+  it('rejects titles over 120 characters', () => {
+    expect(validateColumnTitle('a'.repeat(121))).toEqual([
+      'title must be at most 120 characters',
+    ]);
+  });
+});
+
+describe('validateTaskForm', () => {
+  it('accepts a title with no description', () => {
+    expect(validateTaskForm({ title: 'Write tests', description: '' })).toEqual({});
+  });
+
+  it('rejects an empty title', () => {
+    expect(validateTaskForm({ title: '  ', description: '' })).toEqual({
+      title: ['title is required'],
+    });
+  });
+
+  it('rejects titles over 120 characters', () => {
+    expect(validateTaskForm({ title: 'a'.repeat(121), description: '' })).toEqual({
+      title: ['title must be at most 120 characters'],
+    });
+  });
+
+  it('rejects descriptions over 5000 characters', () => {
+    expect(validateTaskForm({ title: 'Ok', description: 'a'.repeat(5001) })).toEqual({
+      description: ['description must be at most 5000 characters'],
+    });
   });
 });

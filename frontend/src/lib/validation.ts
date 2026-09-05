@@ -75,3 +75,40 @@ export function validateShareForm({ email }: ShareMemberInput): FieldErrors {
   if (emailErrors.length > 0) errors.email = emailErrors;
   return errors;
 }
+
+/**
+ * Mirrors the backend column title schema: trimmed, 1-120 characters.
+ * See backend/src/validators/columnValidators.ts.
+ */
+export function validateColumnTitle(title: string): string[] {
+  const errors: string[] = [];
+  if (!title.trim()) {
+    errors.push('title is required');
+  } else if (title.trim().length > 120) {
+    errors.push('title must be at most 120 characters');
+  }
+  return errors;
+}
+
+export interface TaskFormInput {
+  title: string;
+  description: string;
+}
+
+/**
+ * Mirrors the backend task schema: title trimmed 1-120 characters,
+ * optional description at most 5000 characters.
+ * See backend/src/validators/taskValidators.ts.
+ */
+export function validateTaskForm({ title, description }: TaskFormInput): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!title.trim()) {
+    errors.title = ['title is required'];
+  } else if (title.trim().length > 120) {
+    errors.title = ['title must be at most 120 characters'];
+  }
+  if (description.trim().length > 5000) {
+    errors.description = ['description must be at most 5000 characters'];
+  }
+  return errors;
+}
