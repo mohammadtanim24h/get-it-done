@@ -12,13 +12,24 @@ COPY prisma.config.ts ./
 RUN DATABASE_URL="postgresql://build:build@localhost:5432/build?schema=public" npx prisma generate
 COPY tsconfig.json ./
 COPY src ./src
-RUN npm run build && npm prune --omit=dev
+RUN npm run build
+
+# ---- Prod deps stage: fresh install, dev and peer deps excluded ----
+# @prisma/client declares `prisma` (CLI) and `typescript` as peerDependencies,
+# so npm marks the whole Prisma CLI tree as production-required. The compiled
+# app only requires @prisma/client/runtime/* and @prisma/adapter-pg, so a
+# legacy-peer-deps prune strips the CLI tree (~260MB) while keeping the
+# runtime client.
+FROM node:22-alpine AS deps-prod
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm prune --omit=dev --legacy-peer-deps
 
 # ---- Runtime stage: prod deps + compiled output only, non-root user ----
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
-COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=deps-prod --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
 USER node
 EXPOSE 4000
