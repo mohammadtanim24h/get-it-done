@@ -26,10 +26,10 @@ export interface UseBoardDataResult {
   deleteTask: (taskId: string) => Promise<void>;
   /**
    * Optimistically moves a task, then reconciles with the backend's
-   * authoritative ordering. Reverts to the pre-move snapshot on failure
-   * (a 409 also triggers a refetch) and rethrows so callers can surface
-   * the error. Moves for a task with a request already in flight are
-   * ignored.
+   * authoritative ordering. On failure, puts only that task back where it
+   * came from (a 409 also triggers a refetch) and rethrows so callers can
+   * surface the error. Moves for a task with a request already in flight
+   * are ignored.
    */
   moveTask: (taskId: string, targetColumnId: string, targetPosition: number) => Promise<void>;
   reload: () => Promise<void>;
@@ -215,7 +215,15 @@ export function useBoardData(boardId: string | null): UseBoardDataResult {
   const moveTask = useCallback(
     async (taskId: string, targetColumnId: string, targetPosition: number) => {
       if (pendingMoves.current.has(taskId)) return;
-      const snapshot = columnsRef.current;
+      // Remember where the task came from so a failure can put exactly this
+      // task back — a full snapshot restore would also revert unrelated
+      // changes that landed while the request was in flight.
+      const origin = columnsRef.current.find((c) =>
+        c.tasks.some((task) => task.id === taskId),
+      );
+      const originIndex = origin
+        ? origin.tasks.findIndex((task) => task.id === taskId)
+        : -1;
       pendingMoves.current.add(taskId);
       setColumns((prev) =>
         applyOptimisticMove(prev, taskId, targetColumnId, targetPosition),
@@ -227,9 +235,13 @@ export function useBoardData(boardId: string | null): UseBoardDataResult {
         });
         setColumns((prev) => applyMoveResult(prev, result));
       } catch (err) {
-        setColumns(snapshot);
-        // 409 means the board changed under us (contended move) — the
-        // snapshot itself may be stale, so refetch authoritative state.
+        setColumns((prev) =>
+          origin
+            ? applyOptimisticMove(prev, taskId, origin.id, originIndex)
+            : prev,
+        );
+        // 409 means the board changed under us (contended move) — local
+        // state may be stale, so refetch authoritative state.
         if (err instanceof ApiClientError && err.status === 409) {
           void reload();
         }
