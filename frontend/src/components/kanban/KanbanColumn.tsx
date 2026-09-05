@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useState } from 'react';
-import { useDroppable } from '@dnd-kit/core';
+import { useDndContext, useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { AddTaskComposer } from './AddTaskComposer';
 import { ColumnForm } from './ColumnForm';
@@ -36,6 +36,10 @@ export const KanbanColumn = memo(function KanbanColumn({
   // The task list is a drop target in its own right so empty columns (and
   // drops below the last card) still resolve to this column.
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
+  // When the pointer is over a card, the card (a sortable droppable) wins the
+  // collision and the column's isOver stays false. Highlight the column then too.
+  const { over } = useDndContext();
+  const dropActive = isOver || column.tasks.some((task) => task.id === over?.id);
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingColumn, setDeletingColumn] = useState(false);
@@ -106,7 +110,7 @@ export const KanbanColumn = memo(function KanbanColumn({
       <ul
         ref={setNodeRef}
         className={`flex min-h-10 flex-col gap-2 rounded-lg px-3 pb-2 transition-colors ${
-          isOver ? 'bg-indigo-100/70 ring-2 ring-inset ring-indigo-300' : ''
+          dropActive ? 'bg-indigo-100/70 ring-2 ring-inset ring-indigo-300' : ''
         }`}
         aria-label={`Tasks in ${column.title}`}
       >
