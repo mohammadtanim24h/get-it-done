@@ -1,8 +1,12 @@
-# Local development infrastructure.
+# Local full-stack development: PostgreSQL + backend API + Next.js frontend.
 #
-# Only PostgreSQL is containerized for now; the backend and frontend run
-# directly on the host. Values can be overridden via a root `.env` file
-# (see README.md) or shell environment variables.
+# Copy .env.example to .env (repo root) and set at least JWT_SECRET before
+# running `docker compose up`. No secrets are stored in this file.
+#
+# Startup order:
+#   postgres (healthy) -> migrate (one-shot, exit 0) -> backend (healthy) -> frontend
+# Migrations run as an explicit dedicated container (prisma migrate deploy),
+# never inside application startup.
 
 services:
   postgres:
@@ -23,6 +27,52 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+
+  migrate:
+    build:
+      context: ./backend
+      target: migrator
+    restart: 'no'
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-get_it_done}?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: ./backend
+      target: runtime
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      API_PREFIX: /api
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-get_it_done}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in the root .env file}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      JWT_COOKIE_NAME: access_token
+      CORS_ORIGIN: http://localhost:3000
+    ports:
+      - '4000:4000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+        NEXT_PUBLIC_API_PREFIX: /api
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres-data:
