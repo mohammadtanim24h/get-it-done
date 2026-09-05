@@ -202,8 +202,16 @@ beforeEach(() => {
   );
 
   mockedTaskFindMany.mockImplementation(
-    async (args: { where: { columnId: string }; orderBy?: { position: 'asc' | 'desc' } }) => {
-      const tasks = db.tasks.filter((t) => t.columnId === args.where.columnId);
+    async (args: {
+      where: { columnId: string; position?: { gt?: number } };
+      orderBy?: { position: 'asc' | 'desc' };
+      select?: unknown;
+    }) => {
+      const tasks = db.tasks.filter(
+        (t) =>
+          t.columnId === args.where.columnId &&
+          (args.where.position?.gt === undefined || t.position > args.where.position.gt),
+      );
       const order = args.orderBy?.position ?? 'asc';
       return [...tasks]
         .sort((a, b) => (order === 'desc' ? b.position - a.position : a.position - b.position))
@@ -235,11 +243,18 @@ beforeEach(() => {
   );
 
   mockedTaskUpdate.mockImplementation(
-    async ({ where, data }: { where: { id: string }; data: { title?: string; description?: string } }) => {
+    async ({
+      where,
+      data,
+    }: {
+      where: { id: string };
+      data: { title?: string; description?: string; position?: number };
+    }) => {
       const task = db.tasks.find((t) => t.id === where.id);
       if (!task) throw Object.assign(new Error('not found'), { code: 'P2025' });
       if (data.title !== undefined) task.title = data.title;
       if (data.description !== undefined) task.description = data.description;
+      if (data.position !== undefined) task.position = data.position;
       return { ...task, createdAt: new Date('2026-03-01T00:00:00.000Z'), updatedAt: new Date('2026-04-01T00:00:00.000Z') };
     },
   );
@@ -591,10 +606,8 @@ describe('DELETE /api/tasks/:taskId', () => {
     // Delete + gap closing are atomic in a transaction.
     expect(mockedTransaction).toHaveBeenCalledTimes(1);
     expect(mockedTaskDelete).toHaveBeenCalledWith({ where: { id: 'task-b' } });
-    expect(mockedTaskUpdateMany).toHaveBeenCalledWith({
-      where: { columnId: 'col-1', position: { gt: 1 } },
-      data: { position: { decrement: 1 } },
-    });
+    // Gap closing shifts each later sibling by one, row by row.
+    expect(mockedTaskUpdate).toHaveBeenCalledWith({ where: { id: 'task-c' }, data: { position: 1 } });
     const positions = db.tasks
       .filter((t) => t.columnId === 'col-1')
       .sort((a, b) => a.position - b.position)
@@ -615,10 +628,9 @@ describe('DELETE /api/tasks/:taskId', () => {
     const res = await request(createApp()).delete('/api/tasks/task-a').set('Cookie', authCookie(OWNER));
 
     expect(res.status).toBe(204);
-    expect(mockedTaskUpdateMany).toHaveBeenCalledWith({
-      where: { columnId: 'col-1', position: { gt: 0 } },
-      data: { position: { decrement: 1 } },
-    });
+    // task-a was the only task in col-1, so no sibling writes happen and the
+    // other column is untouched.
+    expect(mockedTaskUpdate).not.toHaveBeenCalled();
     expect(db.tasks.find((t) => t.id === 'task-b')!.position).toBe(0);
   });
 

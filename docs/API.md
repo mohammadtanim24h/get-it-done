@@ -5,12 +5,13 @@ Base URL: `http://localhost:4000/api` (see `API_PREFIX` in `backend/.env.example
 ## Authentication
 
 The API uses an httpOnly JWT session cookie (`access_token`, `SameSite=Lax`,
-`Secure` in production). All endpoints except `register` and `login` require it;
-requests without a valid, unexpired cookie get `401`.
+`Secure` in production). All endpoints except `register`, `login`, and
+`logout` require it; requests without a valid, unexpired cookie get `401`.
 
 ```
 POST /api/auth/register   { name, email, password }        -> 201 { data: { user } }
 POST /api/auth/login      { email, password }              -> 200 { data: { user } } + Set-Cookie
+POST /api/auth/logout     (optional cookie)                -> 204 (clears the cookie)
 GET  /api/auth/me         (cookie)                         -> 200 { data: { user } }
 ```
 

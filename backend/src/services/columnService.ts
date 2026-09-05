@@ -3,6 +3,7 @@ import type { Prisma } from '../generated/prisma/client';
 import { NotFoundError } from '../utils/appError';
 import type { ColumnDto } from '../types/column';
 import type { CreateColumnInput, UpdateColumnInput } from '../validators/columnValidators';
+import { shiftPositions } from './positionShift';
 
 /**
  * Column business logic. Authorization is enforced before these functions
@@ -63,15 +64,23 @@ export async function updateColumn(boardId: string, columnId: string, input: Upd
 /**
  * Delete a column and its tasks (cascade), then close the position gap so
  * the board's columns stay contiguous. Gap closing runs in the same
- * transaction as the delete.
+ * transaction as the delete. The board row is locked FOR UPDATE (the same
+ * lock class column creation takes) so concurrent column appends/deletes
+ * serialize before positions are read, and siblings are shifted one row at
+ * a time in collision-free order (a bulk updateMany cannot guarantee
+ * visitation order under the (boardId, position) unique index).
  */
 export async function deleteColumn(boardId: string, columnId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Board" WHERE id = ${boardId} FOR UPDATE`;
     const column = await getColumnForBoard(tx, boardId, columnId);
     await tx.column.delete({ where: { id: columnId } });
-    await tx.column.updateMany({
+    const siblings = await tx.column.findMany({
       where: { boardId, position: { gt: column.position } },
-      data: { position: { decrement: 1 } },
+      select: { id: true, position: true },
     });
+    await shiftPositions(siblings, -1, (id, position) =>
+      tx.column.update({ where: { id }, data: { position } }),
+    );
   });
 }

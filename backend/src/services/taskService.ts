@@ -1,8 +1,9 @@
 import { prisma } from '../lib/prisma';
 import type { Prisma } from '../generated/prisma/client';
-import { NotFoundError } from '../utils/appError';
+import { ConflictError, NotFoundError } from '../utils/appError';
 import type { TaskDto } from '../types/task';
 import type { CreateTaskInput, UpdateTaskInput } from '../validators/taskValidators';
+import { shiftPositions } from './positionShift';
 
 /**
  * Task business logic. Task access is derived from the parent column's
@@ -76,14 +77,46 @@ export async function updateTask(boardId: string, taskId: string, input: UpdateT
 /**
  * Delete a task and close the ordering gap in its column so positions stay
  * contiguous. Gap closing runs in the same transaction as the delete.
+ *
+ * Uses the same locking discipline as task movement: the task's column row
+ * is locked FOR UPDATE, then its location is re-read AFTER the lock. If a
+ * competing move relocated the task between the pre-lock read and the lock,
+ * the delete retries against its new column (bounded; exhaustion is a 409).
+ * Siblings are shifted one row at a time in collision-free order — a bulk
+ * updateMany cannot guarantee visitation order and can transiently violate
+ * the (columnId, position) unique index.
  */
+const MAX_DELETE_ATTEMPTS = 3;
+
 export async function deleteTask(boardId: string, taskId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    const task = await getTaskForBoard(tx, boardId, taskId);
-    await tx.task.delete({ where: { id: taskId } });
-    await tx.task.updateMany({
-      where: { columnId: task.columnId, position: { gt: task.position } },
-      data: { position: { decrement: 1 } },
-    });
+    for (let attempt = 0; ; attempt++) {
+      const task = await getTaskForBoard(tx, boardId, taskId);
+      await tx.$queryRaw`SELECT id FROM "Column" WHERE id = ${task.columnId} FOR UPDATE`;
+      // Authoritative location, read after the lock is held.
+      const current = await tx.task.findUnique({
+        where: { id: taskId },
+        select: { columnId: true, position: true },
+      });
+      if (!current) {
+        throw new NotFoundError('Task not found');
+      }
+      if (current.columnId !== task.columnId) {
+        if (attempt >= MAX_DELETE_ATTEMPTS - 1) {
+          throw new ConflictError('Task is moving concurrently; retry the request');
+        }
+        continue;
+      }
+
+      await tx.task.delete({ where: { id: taskId } });
+      const siblings = await tx.task.findMany({
+        where: { columnId: current.columnId, position: { gt: current.position } },
+        select: { id: true, position: true },
+      });
+      await shiftPositions(siblings, -1, (id, position) =>
+        tx.task.update({ where: { id }, data: { position } }),
+      );
+      return;
+    }
   });
 }

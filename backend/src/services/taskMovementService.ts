@@ -4,6 +4,7 @@ import { ConflictError, NotFoundError, ValidationError } from '../utils/appError
 import { getTaskForBoard } from './taskService';
 import type { TaskDto } from '../types/task';
 import type { MoveTaskInput } from '../validators/taskValidators';
+import { shiftPositions } from './positionShift';
 
 /**
  * Task movement business logic.
@@ -70,24 +71,16 @@ async function lockColumns(db: Prisma.TransactionClient, columnIds: string[]): P
 }
 
 /**
- * Shift affected sibling tasks by exactly one position each, ONE ROW AT A
- * TIME, in a deterministic collision-free order: descending original
- * position when incrementing, ascending when decrementing. A bulk
- * updateMany cannot guarantee row visitation order on PostgreSQL, and an
- * incrementing bulk UPDATE can transiently collide with a not-yet-moved
- * row under the (columnId, position) unique constraint.
+ * Shift affected sibling tasks by exactly one position each, one row at a
+ * time in a collision-free order (see positionShift.ts for why a bulk
+ * updateMany is unsafe under the (columnId, position) unique constraint).
  */
 async function shiftTasks(
   tx: Prisma.TransactionClient,
   tasks: { id: string; position: number }[],
   delta: 1 | -1,
 ): Promise<void> {
-  const ordered = [...tasks].sort((a, b) =>
-    delta === 1 ? b.position - a.position : a.position - b.position,
-  );
-  for (const task of ordered) {
-    await tx.task.update({ where: { id: task.id }, data: { position: task.position + delta } });
-  }
+  await shiftPositions(tasks, delta, (id, position) => tx.task.update({ where: { id }, data: { position } }));
 }
 
 const orderDto = (columnId: string, tasks: { id: string; position: number }[]): ColumnOrderDto => ({

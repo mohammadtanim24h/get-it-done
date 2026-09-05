@@ -18,7 +18,7 @@ export interface AuthContextValue {
   status: AuthStatus;
   login: (input: LoginInput) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -64,8 +64,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStatus('authenticated');
   }, []);
 
-  const logout = useCallback(() => {
-    authService.logout();
+  const logout = useCallback(async () => {
+    try {
+      // Ask the backend to clear the httpOnly cookie; clearing local state
+      // even if the request fails so the UI never gets stuck signed in.
+      await authService.logout();
+    } catch {
+      // ignore network errors — local state is cleared regardless
+    }
     setUser(null);
     setStatus('unauthenticated');
   }, []);

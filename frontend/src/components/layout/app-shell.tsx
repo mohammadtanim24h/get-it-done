@@ -36,7 +36,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 >
                   {user.name}
                 </span>
-                <Button variant="secondary" onClick={logout}>
+                <Button variant="secondary" onClick={() => void logout()}>
                   Sign out
                 </Button>
               </>

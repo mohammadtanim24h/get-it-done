@@ -185,3 +185,15 @@ describe('GET /api/auth/me', () => {
     expect(res.body.error.code).toBe('UNAUTHORIZED');
   });
 });
+
+describe('POST /api/auth/logout', () => {
+  it('clears the session cookie and returns 204 without requiring auth', async () => {
+    const res = await request(createApp()).post('/api/auth/logout');
+
+    expect(res.status).toBe(204);
+    const setCookie = (res.headers['set-cookie'] ?? []).join(';').toLowerCase();
+    expect(setCookie).toContain(`${COOKIE_NAME.toLowerCase()}=;`);
+    // The cookie is expired into the past so the browser discards it.
+    expect(setCookie).toContain('expires=thu, 01 jan 1970');
+  });
+});

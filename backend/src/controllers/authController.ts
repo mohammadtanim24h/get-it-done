@@ -35,3 +35,13 @@ export async function me(req: Request, res: Response, next: NextFunction): Promi
     next(error);
   }
 }
+
+/**
+ * Clear the session cookie. Idempotent and unauthenticated: the token
+ * itself is not revoked (stateless JWT), but the browser drops it, so the
+ * session ends client-side. `path` must match the cookie's own path.
+ */
+export function logout(_req: Request, res: Response): void {
+  res.clearCookie(authCookieName, { path: '/' });
+  res.status(204).send();
+}

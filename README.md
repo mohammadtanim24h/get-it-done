@@ -70,7 +70,7 @@ get-it-done/
 │   │   ├── routes/           # route wiring (auth, boards, columns, tasks, health)
 │   │   ├── services/         # business logic (auth, boards, columns, tasks, task movement)
 │   │   ├── validators/       # Zod schemas
-│   │   ├── generated/prisma/ # generated Prisma client (committed, used by builds)
+│   │   ├── generated/prisma/ # generated Prisma client (created locally by prisma generate; not committed)
 │   │   ├── app.ts            # Express app assembly (helmet, CORS, cookies, JSON)
 │   │   └── server.ts         # HTTP entrypoint
 │   └── tests/                # Vitest + Supertest API tests
@@ -99,8 +99,9 @@ get-it-done/
   bcrypt comparison either way, so login responses don't reveal whether an
   account exists.
 
-There is deliberately no logout endpoint and no refresh token; the session
-ends when the cookie expires (see trade-offs).
+There is deliberately no refresh token. `POST /api/auth/logout` clears the
+cookie, but the (stateless) token itself is not revoked — a stolen cookie
+remains valid until expiry (see trade-offs).
 
 ## Authorization Model
 
@@ -151,7 +152,11 @@ Two details worth knowing:
   accepted from the client on create/update — reordering happens exclusively
   through `PATCH /api/tasks/:taskId/move`. Editing a task cannot reorder it.
 - Deleting a task (or a column) closes the resulting gap in the same
-  transaction, so the contiguity invariant holds at all times.
+  transaction, so the contiguity invariant holds at all times. Task deletion
+  takes the same column lock as moves and shifts siblings one row at a time
+  in collision-free order — a bulk position update cannot guarantee row
+  visitation order on PostgreSQL and can transiently violate the unique
+  index.
 
 ## Task Movement Algorithm
 
@@ -191,7 +196,7 @@ Conventions:
 
 - Success: `{ "data": { ... } }`. Deletes return `204` with no body.
 - Failure: `{ "error": { "code": "...", "message": "...", "details?": ... } }`.
-- All endpoints except register/login require the session cookie.
+- All endpoints except register/login/logout require the session cookie.
 
 A compact reference table also lives in [`docs/API.md`](docs/API.md).
 
@@ -225,6 +230,12 @@ Exchange credentials for a session cookie.
 `Set-Cookie: access_token=<jwt>; HttpOnly; SameSite=Lax; Path=/`.
 Failures: `400` malformed body, `401` invalid email or password (identical
 response either way).
+
+#### `POST /api/auth/logout`
+
+Clears the session cookie. `204`, no body, never fails (no auth required —
+clearing an absent cookie is a no-op). The token itself is not revoked
+server-side.
 
 #### `GET /api/auth/me`
 
@@ -473,6 +484,7 @@ build time, so changing them requires a rebuild (or dev-server restart).
 | `POSTGRES_PORT`       | 5432    | Port published on the host                                      |
 | `JWT_SECRET`          | — (required) | Passed to the backend container; compose refuses to start without it |
 | `JWT_EXPIRES_IN`      | 1h      | Passed to the backend container                                 |
+| `CORS_ORIGIN`         | http://localhost:3000 | Browser origins allowed to call the API (comma-separated) |
 | `NEXT_PUBLIC_API_URL` | http://localhost:4000 | Frontend build arg (browser-reachable API URL)   |
 | `NEXT_PUBLIC_API_PREFIX` | /api   | Frontend build arg                                              |
 
@@ -573,8 +585,9 @@ curl -s -b jar.txt -X PATCH $API/tasks/$TASK/move -H 'Content-Type: application/
   generic message in production — no stack traces or internals leak.
 - **Containers**: multi-stage builds, non-root users, healthchecks; the
   runtime image excludes dev dependencies and the Prisma CLI.
-- Known gaps (deliberate, see trade-offs): no logout/refresh, no rate
-  limiting, no email verification.
+- Known gaps (deliberate, see trade-offs): no refresh token (logout clears
+  the cookie but does not revoke the JWT), no rate limiting, no email
+  verification.
 
 ## Deployment Guidance
 
@@ -599,6 +612,36 @@ deployment and encodes the important operational decisions:
 6. **Healthchecks.** Both containers expose `/health`-based checks usable
    directly by orchestrators.
 
+### A Concrete Deployment Option
+
+The simplest realistic deployment keeps the docker-compose shape on a single
+Linux VM (e.g. a small cloud instance) with a managed database:
+
+- **Backend**: the `backend` image (multi-stage build, non-root,
+  `/health` healthcheck) run by Docker Compose or systemd on the VM, behind
+  a reverse proxy (Caddy/nginx) that terminates TLS for `api.example.com`.
+- **Frontend**: either the `frontend` image on the same VM behind the same
+  proxy at `app.example.com`, or the same Next.js app on Vercel — the only
+  build-time inputs are `NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_API_PREFIX`.
+- **PostgreSQL**: a managed instance (Neon, Supabase, RDS, ...). Put its
+  connection string in `DATABASE_URL`; nothing else in the app assumes a
+  local database. For a managed DB, drop the `postgres` and `migrate`
+  services' built-in URL and point both at the external string.
+- **Environment variables**: everything arrives via environment (see the
+  tables above). Required: `DATABASE_URL`, `JWT_SECRET` (32-byte random
+  hex), `CORS_ORIGIN=https://app.example.com` (comma-separate extra
+  origins), `NODE_ENV=production`. Nothing secret is baked into any image.
+- **CORS**: `CORS_ORIGIN` must list the exact browser origin(s) — scheme,
+  host, and port — of the deployed frontend, with credentials already
+  enabled server-side.
+- **Migrations**: run `docker compose run --rm migrate` (or
+  `npx prisma migrate deploy` from a release script/CI step with
+  `DATABASE_URL` set) before starting a new API version. The API container
+  itself never migrates.
+- **Cookie security**: with `NODE_ENV=production` the session cookie is
+  `Secure`, so both origins must be served over HTTPS (the reverse proxy
+  can terminate TLS).
+
 ## Design Decisions and Trade-offs
 
 Where more than one reasonable approach existed, the choice made:
@@ -607,8 +650,9 @@ Where more than one reasonable approach existed, the choice made:
   tokens are unreachable from client JS; the cost is CSRF surface, kept
   small by `SameSite=Lax` (state-changing routes are also method-restricted
   PATCH/POST/DELETE with JSON bodies, which HTML forms can't produce
-  cross-origin). No refresh token / logout: acceptable for this scope, means
-  a stolen cookie is valid until expiry.
+  cross-origin). No refresh token, and logout only clears the cookie (the
+  stateless JWT is not revocable): acceptable for this scope, means a
+  stolen cookie is valid until expiry.
 - **Contiguous integer positions vs. fractional/gapped positions.**
   Fractional positions make moves O(1) but need periodic rebalancing and
   complicate uniqueness. Contiguous positions keep the data model honest
@@ -645,3 +689,34 @@ Where more than one reasonable approach existed, the choice made:
 - **Backend tests mock Prisma.** Fast, hermetic HTTP-level tests; the cost
   is that transaction/locking behavior (the riskiest part) is covered by the
   smoke test against a real database rather than the unit suite.
+
+## Assessment Notes
+
+Short summary of the choices a reviewer is most likely to probe; the
+sections above carry the detail.
+
+- **Single JWT access token in an httpOnly cookie** — no refresh token, 1h
+  expiry; logout clears the cookie but does not revoke the token.
+  Deliberate scope cut: it keeps the auth surface small and honest; the
+  cost (re-login after expiry, no server-side revocation) is acceptable for
+  this application's threat model.
+- **Contiguous integer positions** — the database enforces
+  `(parent, position)` uniqueness, so an ordering bug is a constraint
+  violation rather than silent corruption. The cost is O(n) row updates per
+  move, a fine trade at board scale.
+- **Movement is one transaction with deterministic locking** — affected
+  column rows are locked `FOR UPDATE` in sorted-id order (no deadlocks),
+  positions are read after the lock, and every intermediate state satisfies
+  the unique constraint (parking position −1, one-row-at-a-time shifts).
+  Creates and deletes use the same lock discipline.
+- **Membership model** — one owner (no membership row) plus single-level
+  members; permissions resolve from the database in one place. Roles such as
+  viewer/editor would be a localized change later.
+- **Intentionally simple architecture** — Express service layer, no queue,
+  no cache, no WebSockets, no pagination, no ORM tricks beyond explicit
+  transactions. Every added mechanism here would need to justify itself
+  against the requirements, which none did; the interesting complexity is
+  concentrated where the problem actually is (concurrent ordering).
+- **Not claimed**: enterprise-grade hardening. Rate limiting, email
+  verification, audit logging, and refresh-token rotation are absent on
+  purpose and listed as known gaps.

@@ -190,8 +190,16 @@ beforeEach(() => {
   );
 
   mockedColumnFindMany.mockImplementation(
-    async (args: { where: { boardId: string }; orderBy?: { position: 'asc' | 'desc' } }) => {
-      const columns = db.columns.filter((c) => c.boardId === args.where.boardId);
+    async (args: {
+      where: { boardId: string; position?: { gt?: number } };
+      orderBy?: { position: 'asc' | 'desc' };
+      select?: unknown;
+    }) => {
+      const columns = db.columns.filter(
+        (c) =>
+          c.boardId === args.where.boardId &&
+          (args.where.position?.gt === undefined || c.position > args.where.position.gt),
+      );
       const order = args.orderBy?.position ?? 'asc';
       return [...columns]
         .sort((a, b) => (order === 'desc' ? b.position - a.position : a.position - b.position))
@@ -205,12 +213,15 @@ beforeEach(() => {
     return { ...column, createdAt: new Date('2026-03-01T00:00:00.000Z'), updatedAt: new Date('2026-03-01T00:00:00.000Z') };
   });
 
-  mockedColumnUpdate.mockImplementation(async ({ where, data }: { where: { id: string }; data: { title?: string } }) => {
-    const column = db.columns.find((c) => c.id === where.id);
-    if (!column) throw Object.assign(new Error('not found'), { code: 'P2025' });
-    if (data.title !== undefined) column.title = data.title;
-    return { ...column, createdAt: new Date('2026-03-01T00:00:00.000Z'), updatedAt: new Date('2026-04-01T00:00:00.000Z') };
-  });
+  mockedColumnUpdate.mockImplementation(
+    async ({ where, data }: { where: { id: string }; data: { title?: string; position?: number } }) => {
+      const column = db.columns.find((c) => c.id === where.id);
+      if (!column) throw Object.assign(new Error('not found'), { code: 'P2025' });
+      if (data.title !== undefined) column.title = data.title;
+      if (data.position !== undefined) column.position = data.position;
+      return { ...column, createdAt: new Date('2026-03-01T00:00:00.000Z'), updatedAt: new Date('2026-04-01T00:00:00.000Z') };
+    },
+  );
 
   mockedColumnUpdateMany.mockImplementation(
     async (args: {
@@ -495,10 +506,8 @@ describe('DELETE /api/boards/:boardId/columns/:columnId', () => {
     ]);
     // Delete + gap closing happen atomically in a transaction.
     expect(mockedTransaction).toHaveBeenCalledTimes(1);
-    expect(mockedColumnUpdateMany).toHaveBeenCalledWith({
-      where: { boardId: 'board-1', position: { gt: 1 } },
-      data: { position: { decrement: 1 } },
-    });
+    // Gap closing shifts each later column by one, row by row.
+    expect(mockedColumnUpdate).toHaveBeenCalledWith({ where: { id: 'col-c' }, data: { position: 1 } });
   });
 
   it('deleting the last column leaves the remaining positions untouched', async () => {
@@ -512,11 +521,9 @@ describe('DELETE /api/boards/:boardId/columns/:columnId', () => {
     expect(db.columns.filter((c) => c.boardId === 'board-1')).toEqual([
       { id: 'col-a', title: 'Todo', position: 0, boardId: 'board-1' },
     ]);
-    // Gap closing still runs, but matches nothing past the last position.
-    expect(mockedColumnUpdateMany).toHaveBeenCalledWith({
-      where: { boardId: 'board-1', position: { gt: 1 } },
-      data: { position: { decrement: 1 } },
-    });
+    // Gap closing still runs, but there is nothing past the last position,
+    // so no sibling writes happen.
+    expect(mockedColumnUpdate).not.toHaveBeenCalled();
     expect(db.columns.filter((c) => c.boardId === 'board-1').every((c) => c.position === 0)).toBe(true);
   });
 

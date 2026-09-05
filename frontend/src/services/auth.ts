@@ -35,10 +35,10 @@ export const authService = {
     return data.user;
   },
 
-  // The backend has no logout endpoint and the cookie is httpOnly, so
-  // logging out only clears client-side session state. The cookie expires
-  // server-side (default 1h).
-  logout(): void {
-    // Intentional no-op at the transport layer.
+  // The cookie is httpOnly, so only the server can clear it. Logout asks
+  // the backend to drop it; the token itself stays valid until expiry
+  // (stateless JWT, no server-side revocation).
+  async logout(): Promise<void> {
+    await apiClient.post('/auth/logout');
   },
 };
