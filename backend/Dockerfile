@@ -44,6 +44,10 @@ CMD ["npx", "prisma", "migrate", "deploy"]
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
+# package.json (no "type" field) explicitly marks dist/*.js as CommonJS.
+# Without it Node falls back to per-file syntax detection, whose behavior
+# varies across Node releases and can misclassify tsc output as ESM.
+COPY package.json ./
 COPY --from=deps-prod --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
 USER node
