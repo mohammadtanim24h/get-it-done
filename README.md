@@ -9,6 +9,14 @@ the same time.
 The full API reference lives in [`docs/API.md`](docs/API.md) - every endpoint,
 request/response shape, and error code.
 
+> **A note for reviewers:** the backend is deployed on Render's free tier.
+> Free instances spin down after inactivity, so the first request after a pause
+> hits a cold start and can take a while to come back. Even when warm, API
+> responses are slower than they'd be on paid infrastructure, so actions like
+> drag-and-drop (which persist through the move endpoint) can feel laggy.
+> Please keep that in mind when evaluating the live app - the slowness is the
+> hosting tier, not the code.
+
 ## Features
 
 - Email/password registration and login, with a JWT session stored in an
