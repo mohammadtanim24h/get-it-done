@@ -25,7 +25,22 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm prune --omit=dev --legacy-peer-deps
 
+# ---- Migrator target: full dev deps + Prisma CLI, schema and migrations ----
+# One-shot container that applies migrations explicitly; the API container
+# never migrates on startup. This stage must NOT be last: platforms that build
+# the default (final) stage — e.g. Render — would then run the migrator as the
+# service. docker-compose always selects stages explicitly by name.
+FROM node:22-alpine AS migrator
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY prisma.config.ts ./
+COPY prisma ./prisma
+CMD ["npx", "prisma", "migrate", "deploy"]
+
 # ---- Runtime stage: prod deps + compiled output only, non-root user ----
+# Kept last so default builds (docker build with no --target, Render, etc.)
+# produce the API image, not the migrator.
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
@@ -36,14 +51,3 @@ EXPOSE 4000
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=5 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||4000)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["node", "dist/server.js"]
-
-# ---- Migrator target: full dev deps + Prisma CLI, schema and migrations ----
-# One-shot container that applies migrations explicitly; the API container
-# never migrates on startup.
-FROM node:22-alpine AS migrator
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci
-COPY prisma.config.ts ./
-COPY prisma ./prisma
-CMD ["npx", "prisma", "migrate", "deploy"]
