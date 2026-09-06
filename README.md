@@ -16,6 +16,13 @@ request/response shape, and error code.
 > drag-and-drop (which persist through the move endpoint) can feel laggy.
 > Please keep that in mind when evaluating the live app - the slowness is the
 > hosting tier, not the code.
+>
+> One more thing: the deployed frontend (Vercel) and backend (Render) live on
+> different sites, so the session cookie is a third-party cookie
+> (`SameSite=None; Secure`). Chrome blocks third-party cookies by default in
+> Incognito windows, which drops the cookie right after login and bounces you
+> back to the login page. Use a regular browser window, or allow third-party
+> cookies for the site, when trying the live app.
 
 ## Features
 
@@ -308,8 +315,9 @@ reachable database, then applied elsewhere with `migrate deploy`.
 These are the choices I expect a reviewer to probe, so I'll lay them out
 up front:
 
-- **Auth**: a single JWT in an httpOnly cookie (`SameSite=Lax`, `Secure` in
-  production, 1h). No refresh token and no server-side revocation - logout
+- **Auth**: a single JWT in an httpOnly cookie (`SameSite=Lax` in development,
+  `SameSite=None` + `Secure` in production because the deployed frontend and
+  backend are on different sites; 1h expiry). No refresh token and no server-side revocation - logout
   just clears the cookie, so a stolen cookie stays valid until it expires.
   Login is enumeration-resistant (identical `401` whether the email is
   unknown or the password is wrong). This was a deliberate scope cut for the
